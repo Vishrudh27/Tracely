@@ -7,9 +7,11 @@ import '../database/app_database.dart';
 import '../database/daos/category_dao.dart';
 import '../database/daos/completion_dao.dart';
 import '../database/daos/habit_dao.dart';
+import '../database/daos/reflection_dao.dart';
 import '../models/habit_models.dart';
 import '../services/database_service.dart';
 import '../../core/extensions/date_extensions.dart';
+import '../../core/providers/current_date_provider.dart';
 import '../../core/utils/streak_calculator.dart';
 
 /// Repository providing all habit-related data to the presentation layer.
@@ -29,10 +31,12 @@ class HabitRepository {
 
   /// Watch today's active habits with their completion status.
   ///
-  /// FIXED: Merges both habits stream AND completions stream so toggling
+  /// Merges both habits stream AND completions stream so toggling
   /// a completion updates the dashboard list reactively in real time.
-  Stream<List<HabitWithCompletion>> watchTodaysHabits() {
-    final today = DateTime.now().startOfDay;
+  ///
+  /// [today] must be supplied by the caller rather than read from the clock
+  /// here — this stream outlives the day it was created on.
+  Stream<List<HabitWithCompletion>> watchTodaysHabits(DateTime today) {
     final controller = StreamController<List<HabitWithCompletion>>();
 
     List<Habit> latestHabits = [];
@@ -100,8 +104,7 @@ class HabitRepository {
   /// Watch today's overall completion progress as a reactive stream.
   ///
   /// Reacts to BOTH habit changes AND completion changes.
-  Stream<DailyProgress> watchTodaysProgress() {
-    final today = DateTime.now().startOfDay;
+  Stream<DailyProgress> watchTodaysProgress(DateTime today) {
     final controller = StreamController<DailyProgress>();
 
     List<Habit> latestHabits = [];
@@ -156,8 +159,7 @@ class HabitRepository {
   // ---------------------------------------------------------------------------
 
   /// Watch the current week's completion data for the heatmap strip.
-  Stream<List<DayCompletion>> watchWeeklyHeatmap() async* {
-    final today = DateTime.now().startOfDay;
+  Stream<List<DayCompletion>> watchWeeklyHeatmap(DateTime today) async* {
     final weekStart = today.startOfWeek;
 
     await for (final _ in _completionDao.watchWeekCompletions(weekStart)) {
@@ -165,7 +167,7 @@ class HabitRepository {
       final habits = await _habitDao.getActiveHabits();
 
       for (int i = 0; i < 7; i++) {
-        final day = weekStart.add(Duration(days: i));
+        final day = weekStart.addDays(i);
         final scheduledHabits =
             habits.where((h) => _isHabitScheduledForDay(h, day)).toList();
 
@@ -224,10 +226,12 @@ class HabitRepository {
   // Toggle completion
   // ---------------------------------------------------------------------------
 
-  /// Toggle today's completion for a habit.
-  Future<void> toggleCompletion(int habitId) async {
-    final today = DateTime.now().startOfDay;
-    await _completionDao.toggleCompletion(habitId, today);
+  /// Toggle completion for a habit on [today].
+  ///
+  /// The caller passes the same day the dashboard is displaying, so a tick
+  /// always writes to the day the user is actually looking at.
+  Future<void> toggleCompletion(int habitId, DateTime today) async {
+    await _completionDao.toggleCompletion(habitId, today.startOfDay);
   }
 
   // ---------------------------------------------------------------------------
@@ -237,8 +241,10 @@ class HabitRepository {
   /// Watch heatmap data for the last [months] months.
   ///
   /// Returns a map of date → completion percentage (0.0–1.0).
-  Stream<Map<DateTime, double>> watchHeatmapData({required int months}) async* {
-    final today = DateTime.now().startOfDay;
+  Stream<Map<DateTime, double>> watchHeatmapData({
+    required int months,
+    required DateTime today,
+  }) async* {
     final since = DateTime(today.year, today.month - months, today.day);
 
     // Emit on startup, then re-emit whenever today's completions change
@@ -273,7 +279,7 @@ class HabitRepository {
         result[day] =
             (completedIds.length / scheduledHabits.length).clamp(0.0, 1.0);
       }
-      day = day.add(const Duration(days: 1));
+      day = day.addDays(1);
     }
     return result;
   }
@@ -285,9 +291,9 @@ class HabitRepository {
   /// Watch the daily completion percentage over the last [days] days.
   Stream<List<DailyCompletion>> watchCompletionTrend({
     required int days,
+    required DateTime today,
   }) async* {
-    final today = DateTime.now().startOfDay;
-    final since = today.subtract(Duration(days: days - 1));
+    final since = today.addDays(-(days - 1));
 
     yield await _buildTrend(since, today, days);
 
@@ -312,7 +318,7 @@ class HabitRepository {
 
     final result = <DailyCompletion>[];
     for (int i = 0; i < days; i++) {
-      final day = since.add(Duration(days: i));
+      final day = since.addDays(i);
       final scheduledHabits =
           habits.where((h) => _isHabitScheduledForDay(h, day)).toList();
       final completedIds = byDate[day] ?? {};
@@ -329,15 +335,40 @@ class HabitRepository {
   // ---------------------------------------------------------------------------
 
   /// Watch per-habit breakdown statistics for the last 30 days.
-  Stream<List<HabitBreakdown>> watchHabitBreakdowns() async* {
-    final today = DateTime.now().startOfDay;
-    final since = today.subtract(const Duration(days: 29));
+  ///
+  /// Re-emits on habit edits *and* on completions — ticking a habit changes
+  /// every number on this card, so watching habits alone left it stale.
+  Stream<List<HabitBreakdown>> watchHabitBreakdowns(DateTime today) async* {
+    final since = today.addDays(-29);
 
     yield await _buildHabitBreakdowns(today, since);
 
-    await for (final _ in _habitDao.watchActiveHabits()) {
+    await for (final _ in _habitsOrCompletionsChanged(today)) {
       yield await _buildHabitBreakdowns(today, since);
     }
+  }
+
+  /// A tick stream that fires whenever habits or completions change.
+  Stream<void> _habitsOrCompletionsChanged(DateTime today) {
+    final controller = StreamController<void>();
+    StreamSubscription<List<Habit>>? habitSub;
+    StreamSubscription<List<HabitCompletion>>? completionSub;
+
+    habitSub = _habitDao.watchActiveHabits().listen(
+      (_) => controller.add(null),
+      onError: controller.addError,
+    );
+    completionSub = _completionDao.watchCompletionsForDate(today).listen(
+      (_) => controller.add(null),
+      onError: controller.addError,
+    );
+
+    controller.onCancel = () async {
+      await habitSub?.cancel();
+      await completionSub?.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<List<HabitBreakdown>> _buildHabitBreakdowns(
@@ -360,7 +391,7 @@ class HabitRepository {
 
       int scheduledDays = 0;
       for (int i = 0; i < 30; i++) {
-        final day = since.add(Duration(days: i));
+        final day = since.addDays(i);
         if (!day.isAfter(today) && _isHabitScheduledForDay(habit, day)) {
           scheduledDays++;
         }
@@ -394,9 +425,7 @@ class HabitRepository {
   // ---------------------------------------------------------------------------
 
   /// Watch the overall streak — any habit completed on a day counts.
-  Stream<StreakData> watchOverallStreak() async* {
-    final today = DateTime.now().startOfDay;
-
+  Stream<StreakData> watchOverallStreak(DateTime today) async* {
     yield await _computeOverallStreak();
 
     await for (final _ in _completionDao.watchCompletionsForDate(today)) {
@@ -425,8 +454,7 @@ class HabitRepository {
   // ---------------------------------------------------------------------------
 
   /// Generate a positive weekly insight based on this week's completions.
-  Stream<WeeklyInsight> watchWeeklyInsight() async* {
-    final today = DateTime.now().startOfDay;
+  Stream<WeeklyInsight> watchWeeklyInsight(DateTime today) async* {
     final weekStart = today.startOfWeek;
 
     yield await _computeWeeklyInsight(today, weekStart);
@@ -462,8 +490,8 @@ class HabitRepository {
           (byDay[c.completedDate.weekday] ?? 0) + 1;
     }
 
-    for (int i = 0; i <= today.difference(weekStart).inDays; i++) {
-      final day = weekStart.add(Duration(days: i));
+    for (int i = 0; i <= today.calendarDaysSince(weekStart); i++) {
+      final day = weekStart.addDays(i);
       for (final habit in habits) {
         if (_isHabitScheduledForDay(habit, day)) {
           totalScheduled++;
@@ -604,6 +632,67 @@ class HabitRepository {
         return true;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Pause & Reflect: missed habits for a given date
+  // ---------------------------------------------------------------------------
+
+  /// Returns a list of habits that were scheduled but NOT completed on [date].
+  ///
+  /// Used by the Pause & Reflect trigger in DashboardScreen to determine
+  /// whether the sheet should be shown.
+  Future<List<HabitWithCompletion>> getMissedHabitsForDate(
+    DateTime date,
+  ) async {
+    final normalized = date.startOfDay;
+    final habits = await _habitDao.getActiveHabits();
+    final completions = await _completionDao.getCompletionsInRange(
+      normalized,
+      normalized,
+    );
+    final categories = await _categoryDao.getActiveCategories();
+    final catMap = {for (final c in categories) c.id: c};
+    final completedIds = {for (final c in completions) c.habitId};
+
+    final result = <HabitWithCompletion>[];
+    for (final habit in habits) {
+      if (!_isHabitScheduledForDay(habit, normalized)) continue;
+      if (completedIds.contains(habit.id)) continue; // completed — not missed
+      final cat = catMap[habit.categoryId];
+      result.add(
+        HabitWithCompletion(
+          habitId: habit.id,
+          name: habit.name,
+          emoji: habit.emoji ?? cat?.emoji ?? '✨',
+          categoryName: cat?.name ?? 'General',
+          categoryEmoji: cat?.emoji ?? '✨',
+          categoryColorValue: cat?.colorValue ?? 0xFF78716C,
+          frequencyType: habit.frequencyType,
+          frequencyConfig: habit.frequencyConfig,
+          isCompletedToday: false,
+          sortOrder: habit.sortOrder,
+        ),
+      );
+    }
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Statistics: days since first habit
+  // ---------------------------------------------------------------------------
+
+  /// Returns the number of days since the user created their first habit.
+  ///
+  /// Returns 0 if no habits exist yet.
+  Future<int> getDaysSinceStart(DateTime today) async {
+    final habits = await _habitDao.getActiveHabits();
+    if (habits.isEmpty) return 0;
+    // Sort by createdAt to find the oldest
+    final oldest = habits.reduce(
+      (a, b) => a.createdAt.isBefore(b.createdAt) ? a : b,
+    );
+    return today.startOfDay.calendarDaysSince(oldest.createdAt.startOfDay);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -616,15 +705,18 @@ final habitRepositoryProvider = Provider<HabitRepository>((ref) {
 });
 
 final todaysHabitsProvider = StreamProvider<List<HabitWithCompletion>>((ref) {
-  return ref.watch(habitRepositoryProvider).watchTodaysHabits();
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).watchTodaysHabits(today);
 });
 
 final todaysProgressProvider = StreamProvider<DailyProgress>((ref) {
-  return ref.watch(habitRepositoryProvider).watchTodaysProgress();
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).watchTodaysProgress(today);
 });
 
 final weeklyHeatmapProvider = StreamProvider<List<DayCompletion>>((ref) {
-  return ref.watch(habitRepositoryProvider).watchWeeklyHeatmap();
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).watchWeeklyHeatmap(today);
 });
 
 final recentCompletionsProvider =
@@ -647,7 +739,10 @@ final categoriesProvider = StreamProvider<List<Category>>((ref) {
 // Statistics providers
 
 final heatmapDataProvider = StreamProvider<Map<DateTime, double>>((ref) {
-  return ref.watch(habitRepositoryProvider).watchHeatmapData(months: 3);
+  final today = ref.watch(currentDateProvider);
+  return ref
+      .watch(habitRepositoryProvider)
+      .watchHeatmapData(months: 3, today: today);
 });
 
 /// Notifier that holds the selected trend period (7, 30, or 90 days).
@@ -664,19 +759,42 @@ final trendDaysProvider =
 
 final completionTrendProvider = StreamProvider<List<DailyCompletion>>((ref) {
   final days = ref.watch(trendDaysProvider);
+  final today = ref.watch(currentDateProvider);
   return ref
       .watch(habitRepositoryProvider)
-      .watchCompletionTrend(days: days);
+      .watchCompletionTrend(days: days, today: today);
 });
 
 final habitBreakdownsProvider = StreamProvider<List<HabitBreakdown>>((ref) {
-  return ref.watch(habitRepositoryProvider).watchHabitBreakdowns();
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).watchHabitBreakdowns(today);
 });
 
 final overallStreakProvider = StreamProvider<StreakData>((ref) {
-  return ref.watch(habitRepositoryProvider).watchOverallStreak();
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).watchOverallStreak(today);
 });
 
 final weeklyInsightProvider = StreamProvider<WeeklyInsight>((ref) {
-  return ref.watch(habitRepositoryProvider).watchWeeklyInsight();
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).watchWeeklyInsight(today);
+});
+
+final daysSinceStartProvider = FutureProvider<int>((ref) {
+  final today = ref.watch(currentDateProvider);
+  return ref.watch(habitRepositoryProvider).getDaysSinceStart(today);
+});
+
+// Reflection DAO provider (used by MostCommonReasonsCard)
+final reflectionDaoProvider = Provider<ReflectionDao>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.reflectionDao;
+});
+
+/// Watches the most frequently selected reasons from Pause & Reflect entries.
+///
+/// Used by [MostCommonReasonsCard] in the Statistics screen (§4.3, position 5).
+final mostCommonReasonsProvider =
+    StreamProvider<List<ReasonFrequency>>((ref) {
+  return ref.watch(reflectionDaoProvider).watchMostCommonReasons();
 });

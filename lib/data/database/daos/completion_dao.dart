@@ -67,7 +67,11 @@ class CompletionDao extends DatabaseAccessor<AppDatabase>
 
   /// Watch completion records for the current week (7 days from [weekStart]).
   Stream<List<HabitCompletion>> watchWeekCompletions(DateTime weekStart) {
-    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekEnd = DateTime(
+      weekStart.year,
+      weekStart.month,
+      weekStart.day + 6,
+    );
     return (select(habitCompletions)
           ..where(
             (c) =>

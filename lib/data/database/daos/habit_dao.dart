@@ -70,9 +70,19 @@ class HabitDao extends DatabaseAccessor<AppDatabase> with _$HabitDaoMixin {
     return into(habits).insert(habit);
   }
 
-  /// Update an existing habit.
-  Future<bool> updateHabit(HabitsCompanion habit) {
-    return update(habits).replace(habit);
+  /// Update an existing habit, writing only the fields present on [habit].
+  ///
+  /// `replace` rewrites the entire row, so any column the caller left absent
+  /// falls back to its schema default — editing a habit's name that way also
+  /// reset its sort order, cleared its reminder and moved its createdAt.
+  Future<bool> updateHabit(HabitsCompanion habit) async {
+    if (!habit.id.present) {
+      throw ArgumentError('updateHabit requires habit.id to be set');
+    }
+    final rowsAffected =
+        await (update(habits)..where((h) => h.id.equals(habit.id.value)))
+            .write(habit);
+    return rowsAffected > 0;
   }
 
   /// Archive a habit (soft delete — data preserved).

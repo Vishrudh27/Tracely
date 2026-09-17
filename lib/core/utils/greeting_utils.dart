@@ -1,3 +1,5 @@
+import '../constants/quote_constants.dart';
+
 /// Time-based greeting utilities.
 ///
 /// Extracted from AnimatedGreeting so the logic is testable and reusable
@@ -47,11 +49,9 @@ final class GreetingUtils {
   ///
   /// Deterministically selected by day-of-year so it changes each day
   /// but stays the same within a day.
-  static String motivationFooter(List<String> pool) {
+  static String motivationFooter(List<String> pool, [DateTime? date]) {
     if (pool.isEmpty) return '';
-    final dayOfYear = DateTime.now()
-        .difference(DateTime(DateTime.now().year, 1, 1))
-        .inDays;
-    return pool[dayOfYear % pool.length];
+    final index = QuoteConstants.dayOfYear(date ?? DateTime.now());
+    return pool[index % pool.length];
   }
 }

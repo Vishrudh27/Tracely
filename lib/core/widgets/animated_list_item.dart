@@ -72,12 +72,15 @@ class AnimatedListItem extends StatelessWidget {
 
     return AnimatedBuilder(
       animation: controller,
-      builder: (context, child) {
+      // Pass child here so Flutter caches it and avoids rebuilding
+      // the subtree on every animation frame.
+      child: child,
+      builder: (context, animChild) {
         return Opacity(
           opacity: opacity.value,
           child: Transform.translate(
             offset: Offset(0, slide.value),
-            child: this.child, // Use this.child or child parameter
+            child: animChild,
           ),
         );
       },

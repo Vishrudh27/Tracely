@@ -67,6 +67,15 @@ final class AppStrings {
       'Completed habits will appear here as you build momentum.';
 
   // ---------------------------------------------------------------------------
+  // Error States
+  // ---------------------------------------------------------------------------
+
+  static const String errorDashboardTitle = "Couldn't load today";
+  static const String errorDashboardBody =
+      'Something went wrong reading your habits. Your data is safe.';
+  static const String errorDashboardCta = 'Try Again';
+
+  // ---------------------------------------------------------------------------
   // Habits
   // ---------------------------------------------------------------------------
 

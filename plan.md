@@ -11,10 +11,24 @@
 ## Table of Contents
 
 1. [Project Summary & Philosophy](#1-project-summary--philosophy)
+   - 1.1 [The Why Philosophy](#11-the-why-philosophy)
 2. [Golden Rules for the Agent](#2-golden-rules-for-the-agent)
 3. [Architecture Continuation Plan](#3-architecture-continuation-plan)
 4. [Screen-by-Screen Build Specs](#4-screen-by-screen-build-specs)
+   - 4.1 [Dashboard Screen](#41-dashboard-screen)
+   - 4.2 [Habits Screen](#42-habits-screen)
+   - 4.3 [Statistics Screen](#43-statistics-screen)
+   - 4.4 [Shell & Navigation](#44-shell--navigation)
+   - 4.5 [Pause & Reflect (Missed Habit Reflection)](#45-pause--reflect-missed-habit-reflection)
 5. [Animation System Specification](#5-animation-system-specification)
+   - 5.0 [Motion Philosophy](#50-motion-philosophy)
+   - 5.1 [The Parent-Controller + Interval Pattern](#51-the-parent-controller--interval-pattern)
+   - 5.2 [Existing Reflection Screen Intervals (Reference)](#52-existing-reflection-screen-intervals-reference)
+   - 5.3 [Dashboard Entrance Animation](#53-dashboard-entrance-animation)
+   - 5.4 [Habit Completion Micro-Interaction](#54-habit-completion-micro-interaction)
+   - 5.5 [Statistics Screen Entrance Animation](#55-statistics-screen-entrance-animation)
+   - 5.6 [Page Transition Between Reflection → Dashboard](#56-page-transition-between-reflection--dashboard)
+   - 5.7 [Bottom Navigation Tab Switching](#57-bottom-navigation-tab-switching)
 6. [Innovative Ideas Section](#6-innovative-ideas-section)
 7. [Theming Extension Notes](#7-theming-extension-notes)
 8. [Data Model Draft (Drift Schema)](#8-data-model-draft-drift-schema)
@@ -34,6 +48,20 @@ Tracely is an offline-first habit tracker built in Flutter that prioritizes **re
 > "Will this make the user genuinely enjoy opening Tracely tomorrow?"
 
 If the answer is no — or even "maybe" — the feature does not belong.
+
+### 1.1 The Why Philosophy
+
+Every habit tracker on the App Store can tell you **what** happened. You completed 4 of 6 habits. Your streak is 12 days. Your Wednesday consistency is 73%. Numbers. Charts. Percentages. None of them tell you **why**.
+
+Tracely's actual differentiator — the thing that separates it from every other app in this category — is that it tries to understand **why consistency happens or breaks down**. Statistics are the map; reflection is the compass. The map shows where you've been. The compass tells you where to go and, more importantly, what keeps pulling you off course.
+
+When a user misses a habit, Tracely never says "You failed." It asks "What got in the way?" There is no judgment — only understanding. A user who missed three habits because they were sick is having a fundamentally different experience from a user who missed three habits because they're burned out. The numbers are identical. The response should not be.
+
+This is the philosophical layer that governs every feature in this document. The Dashboard answers what happened today. The Statistics screen answers what happened over time. The Pause & Reflect flow (§4.5) answers why it happened. Together, they form a complete picture — not just of behavior, but of the human behind the behavior.
+
+**Long-term vision** (explicitly future, not current scope): Tracely will eventually understand energy patterns, mood trends, environmental factors, distractions, sleep quality, and motivation cycles — not to score the user, not to generate a "wellness grade," but to help them recognize their own patterns. "You tend to skip workouts on days after poor sleep" is infinitely more useful than "You completed 71% of workouts this month." That intelligence layer is where Tracely is headed. The schema and data collection in this plan are designed to support it when the time comes.
+
+**The governing rule:** Every feature must answer two questions: **(1) Does this improve consistency? (2) Does this improve emotional connection?** If neither — don't build it. (See Golden Rule #31 in §2.)
 
 ### Emotional Design Pillars
 
@@ -60,10 +88,10 @@ Headspace (calm onboarding), Calm (breathing space), Apple Health (clean data), 
 ### User Journey
 
 ```
-App Opens → Reflection Screen → Dashboard → Daily Habits → Statistics → Reflection again tomorrow
+App Opens → Daily Opening Ritual → Dashboard → Daily Habits → Statistics → Daily Opening Ritual again tomorrow
 ```
 
-The app **intentionally begins with reflection**, not productivity. The user should take a breath before they start checking things off.
+The app **intentionally begins with the Daily Opening Ritual** (the Reflection screen), not productivity. The app deliberately delays productivity for approximately 2.5 seconds. This is not a loading screen and not a splash screen — it is a designed emotional reset. The sequence — stillness, then a warm welcome, then a quote to sit with, then the invitation to continue — teaches consistency and calm *before* asking for productivity. The user should take a breath before they start checking things off. This sequence is intentional and must never be shortened or bypassed for "efficiency" in future iterations. The route stays `/` and the feature folder stays `reflection/`.
 
 ---
 
@@ -118,6 +146,10 @@ These rules are **non-negotiable**. Violating any of them means the code must be
 28. **Document non-obvious decisions** — Use `///` doc comments on classes and public methods explaining *why*, not just *what*.
 29. **No `print()` calls** — Use the `logger` package already in pubspec for any debug output.
 30. **Keep imports organized** — Dart imports, package imports, project imports — separated by blank lines, alphabetically sorted within each group.
+
+### Philosophy Rule
+
+31. **The Why Philosophy gate** — Every feature must answer two questions: **(1) Does this improve consistency? (2) Does this improve emotional connection?** If neither — don't build it. This is the architectural expression of the Why Philosophy (§1.1). A feature that surfaces interesting data but doesn't help the user understand their patterns or feel emotionally supported by the app has no place in Tracely.
 
 ---
 
@@ -214,7 +246,8 @@ data/
 │   │   ├── habits_table.dart
 │   │   ├── habit_completions_table.dart
 │   │   ├── categories_table.dart
-│   │   └── daily_reflections_table.dart
+│   │   ├── daily_reflections_table.dart
+│   │   └── habit_reflections_table.dart
 │   └── daos/                     # Drift DAOs grouped by domain
 │       ├── habit_dao.dart
 │       ├── completion_dao.dart
@@ -310,7 +343,7 @@ Use `StreamProvider` for any data that should react to database changes (Drift's
 
 ### 4.1 Dashboard Screen
 
-**Purpose:** The daily companion. Answers "What should I do today?" in a calm, unhurried way.
+**Purpose:** The daily companion. The Dashboard exists to answer exactly three questions: **"What should I do today?"**, **"How am I doing?"**, and **"What should I focus on next?"** — everything else on this screen is secondary to these three.
 
 **Route:** `/dashboard`
 
@@ -397,7 +430,7 @@ Same layout as Add, but pre-populated. Additional option at the bottom:
 
 ### 4.3 Statistics Screen
 
-**Purpose:** Understand your consistency over time. Not a performance review — a reflection tool.
+**Purpose:** Understand your consistency over time. Not a performance review — a reflection tool. **Any statistic that requires more than 5 seconds to understand is too complicated and must be redesigned or removed.**
 
 **Route:** `/statistics`
 
@@ -408,12 +441,13 @@ Same layout as Add, but pre-populated. Additional option at the bottom:
 | # | Widget Name | Description |
 |---|-------------|-------------|
 | 1 | `StatisticsHeader` | "Your Journey" title + a subtitle that adapts: e.g. "12 weeks of building" (based on days since first habit creation). Uses `AppTypography.textTheme.headlineMedium`. |
-| 2 | `OverallHeatmapCard` | GitHub-style heatmap showing last 3 months. Cells colored from `AppColors.heatmap[0..4]` based on completion percentage that day. Uses `AppSizes.heatmapCell` and `AppSizes.heatmapSpacing`. |
+| 2 | `OverallHeatmapCard` | GitHub-style heatmap showing last 3 months. Cells colored from `AppColors.heatmap[0..4]` based on completion percentage that day. Uses `AppSizes.heatmapCell` and `AppSizes.heatmapSpacing`. The heatmap is not a chart to be studied. It is a visual memory the user should recognize at a glance, without reading a single number. |
 | 3 | `StreakDisplayCard` | Shows current streak and longest streak side by side. Two soft columns inside one card. Current streak prominently sized, longest streak smaller. If current = longest, show a subtle "Personal best!" badge. No "streak broken" messaging — if streak is 0, show "Start a new streak today" with a seedling emoji 🌱. |
 | 4 | `WeeklyInsightsCard` | Auto-generated 2–3 sentence insight, always positive. Examples: "You were most consistent on Wednesdays — maybe that's your power day?" / "You completed 85% of your habits this week. Steady and strong." Never: "You missed 15% of habits." |
-| 5 | `CompletionTrendChart` | Line chart (via `fl_chart`) showing daily completion percentage over the last 30 days. Smooth bezier curves. Line color: `AppColors.primary`. Fill: `AppColors.primary.withOpacity(0.08)`. Axis labels minimal — just first/last date and percentage marks at 0/50/100. Toggle between 7d / 30d / 90d with chips. Animate on entrance using `AppDurations.chart`. |
-| 6 | `HabitBreakdownList` | Per-habit statistics cards. Each shows: habit emoji + name, completion rate as a thin horizontal bar, current streak. Tapping expands to show that habit's individual heatmap. |
-| 7 | `MonthlyCalendarView` | A clean monthly calendar. Days with completions have a dot below the date number. Color intensity based on that day's completion percentage. Swipe to change months. Today is circled with `AppColors.primary` ring. |
+| 5 | `MostCommonReasonsCard` | Shows a simple ranked breakdown of why habits were missed, computed from `HabitReflections` category frequency over the last 30 days. E.g.: 🧠 Focus 42% / ⏰ Time 30% / 💤 Energy 20% / 🌍 Environment 8%. **Empty state:** if fewer than 3 reflection entries exist, hide this card entirely — not enough data to be meaningful, and a near-empty stat is worse than no stat. Data source: `watchMostCommonReasons(days: 30)` DAO method. |
+| 6 | `CompletionTrendChart` | Line chart (via `fl_chart`) showing daily completion percentage over the last 30 days. Smooth bezier curves. Line color: `AppColors.primary`. Fill: `AppColors.primary.withOpacity(0.08)`. Axis labels minimal — just first/last date and percentage marks at 0/50/100. Toggle between 7d / 30d / 90d with chips. Animate on entrance using `AppDurations.chart`. |
+| 7 | `HabitBreakdownList` | Per-habit statistics cards. Each shows: habit emoji + name, completion rate as a thin horizontal bar, current streak. Tapping expands to show that habit's individual heatmap. |
+| 8 | `MonthlyCalendarView` | A clean monthly calendar. Days with completions have a dot below the date number. Color intensity based on that day's completion percentage. Swipe to change months. Today is circled with `AppColors.primary` ring. |
 
 **Data Requirements:**
 
@@ -422,6 +456,7 @@ Same layout as Add, but pre-populated. Additional option at the bottom:
 - `watchCompletionTrend(days: 30)` → `List<DailyCompletion>` for charting.
 - `watchWeeklyInsight()` → computed insight text based on this week's data.
 - `watchHabitBreakdowns()` → per-habit stats (completion rate, streak, last completed).
+- `watchMostCommonReasons(days: 30)` → `List<ReasonFrequency>` — ranked breakdown of reflection categories.
 
 **States:**
 
@@ -466,7 +501,98 @@ TracelyShell (bottom nav visible)
 
 ---
 
+### 4.5 Pause & Reflect (Missed Habit Reflection)
+
+**Purpose & Tone**
+
+This is the emotional counterpart to habit completion. Where the Dashboard celebrates what was done, Pause & Reflect gently explores what wasn't — and more importantly, *why*. The question is never "Why did you fail?" — it is always **"What got in the way today?"** or **"Anything you'd like to remember about today?"** No red, no warning icons, no guilt framing anywhere in this flow.
+
+**Trigger Logic**
+
+- Triggered **once per day**, aggregated across all habits missed that day — NOT once per individual missed habit. Asking per-habit would feel like an interrogation; a single daily check-in is calmer and matches the emotional design pillars.
+- Fires **at next app open** — evaluated when the user opens the app on a day after one where habits were missed. The trigger checks `HabitCompletions` for the prior day against active habits scheduled for that day.
+- Only fires if **at least one habit was missed** the prior day AND the user hasn't already answered for that date (checked against `HabitReflections.reflectionDate`).
+- **Always skippable** — a visible "Not now" dismiss affordance with zero friction. If dismissed, the prompt does not reappear that day. No repeated nagging, no passive-aggressive re-prompting, no badge or indicator that "you haven't reflected yet."
+
+**UI Spec**
+
+**Component name:** `PauseAndReflectSheet` — a `DraggableScrollableSheet` / large `showModalBottomSheet`, approximately 75% screen height, heavily rounded top corners (`AppRadius.sheet` or the largest existing radius token), generous internal spacing (`AppSpacing.xl` / `AppSpacing.xxl`).
+
+**Header:** A small leaf/plant icon (🌿 or similar soft glyph), then three short lines of text, generous line spacing, centered:
+- "Today didn't go exactly as planned." — `AppTypography.textTheme.titleLarge`
+- "That's okay." — `AppTypography.textTheme.bodyMedium`, `AppColors.textSecondary`
+- "What got in the way today?" — `AppTypography.textTheme.titleLarge`
+
+**Reason Selection:** NOT a flat chip list. Group into 6 categories, each rendered as its own small labeled cluster of soft, rounded "reason cards" (not checkboxes — cards with a small emoji + label, selected state = `AppColors.primary` border + faint tint background, same visual language as `CategoryPicker` in §4.2.1):
+
+| Category | Emoji | Reason Labels |
+|----------|-------|---------------|
+| **Energy** | 🌱 | Low Energy, Poor Sleep, Felt Sick, Burned Out |
+| **Time** | ⏰ | Too Busy, Unexpected Work, Meetings, Family Responsibilities |
+| **Mind** | 🧠 | Lost Motivation, Procrastinated, Forgot, Felt Overwhelmed, Couldn't Focus |
+| **Environment** | 🌍 | Traveling, Weather, No Equipment, Outside Home |
+| **Personal** | ❤️ | Needed Rest, Mental Break, Personal Event, Emergency |
+| **My Reason** | ✍️ | Free-text custom input (single line, optional) |
+
+**Multi-select allowed, capped at 2 selections maximum.** Specify this cap explicitly in code comments so it isn't silently removed later. If the user attempts a third selection, the earliest selection deselects (FIFO behavior).
+
+**Follow-up question:** Optional single follow-up question, shown ONLY if certain categories are picked. Maximum one follow-up ever — never stack multiple. This is a simple lookup table, not a complex branching tree:
+
+| Trigger Reason | Follow-up Question | Answer Options |
+|---------------|-------------------|----------------|
+| Low Energy | "How was your energy?" | 🙂 Great / 😐 Okay / 😴 Very Low |
+| Poor Sleep | "How did you sleep?" | 😴 Badly / 😐 Okay / 😊 Well |
+| Too Busy | "What kept you busy?" | Work / College / Family / Other |
+| Lost Motivation | "Has this been going on?" | Just today / A few days / A while |
+| Felt Overwhelmed | "Was it habit-related?" | Yes / No / Not sure |
+
+If multiple triggering reasons are selected, show the follow-up for the **first** triggering reason only (ordered by the table above).
+
+**Footer:** No "Save" or "Submit" button — only **"Continue"** (or "Done" if no selections made). Below the button, a small closing line: **"🌱 Tomorrow, we'll try again."** — styled the same as the existing `DashboardMotivationFooter` treatment (`AppColors.textDisabled`, italic, `AppTypography.textTheme.bodySmall`).
+
+**Dismiss affordance:** A clear "Not now" text button in the top-right corner of the sheet header, or a visible drag-down handle. Tapping "Not now" dismisses the sheet immediately with no confirmation dialog.
+
+**Entrance animation:** Sheet slides up with a gentle decelerate curve (reuse `AppCurves.emphasizedDecelerate`). Reason cards fade and stagger in similar to the dashboard habit-tile stagger pattern already spec'd in §5.3 — overlapping `Interval`s, not sequential blocking.
+
+**Data Model**
+
+See §8.4a for the `HabitReflections` Drift table. This is a **separate table** from `DailyReflections` (§8.4). `DailyReflections` captures the morning mood/quote check-in from the Daily Opening Ritual — the user's emotional state as they begin their day. `HabitReflections` captures the end-of-day (or next-morning) "what got in the way" check-in — a reflection on what happened after the day played out. Different moments, different purpose, different data shape. Merging them would conflate two distinct emotional touchpoints and make queries unnecessarily complex.
+
+**Statistics Integration**
+
+See `MostCommonReasonsCard` in §4.3 (position 5 in the layout table, between `WeeklyInsightsCard` and `CompletionTrendChart`).
+
+**Phase Placement**
+
+- Data layer (table + DAO) + trigger logic + `PauseAndReflectSheet` UI: **Phase 2** (depends on habit completion data, which is Phase 2 scope). See §9 Phase 2 DoD.
+- `MostCommonReasonsCard` statistics display: **Phase 3** (inherently a statistics feature). See §9 Phase 3 DoD.
+
+**Future Vision**
+
+The reason categories and follow-up answers are stored as structured data (JSON arrays of known keys, not free text dumped into a single column) specifically so that a future pattern-recognition or ML layer could surface deeper correlations — e.g. "Workouts are most often missed on low-energy days following poor sleep" or "Your motivation dips correlate with weeks where meetings exceed 4 hours." This intelligence layer is explicitly NOT being built now. The schema is designed to support it later without migration. See §10 Non-Goals: "AI/ML pattern analysis on reflection data."
+
+---
+
 ## 5. Animation System Specification
+
+Small, tiny moments of delight — the checkbox bounce, the heatmap cell filling, the quote card's reveal glow, the completion ripple, a subtle haptic — are not decorative extras. They are core to making Tracely feel alive, feel premium, feel like something worth opening every morning. These micro-interactions are already specified throughout this document (§5.4 Habit Completion Micro-Interaction, §6.3 Haptic & Sound Micro-Feedback) and are not repeated here. What follows is the system that makes them possible and consistent.
+
+### 5.0 Motion Philosophy
+
+Motion in Tracely exists for three reasons: to **reduce cognitive load**, to **guide attention**, and to **create emotional comfort**. It never exists to impress, to demonstrate technical capability, or to "look cool." If removing an animation would make the app feel jarring or confusing, the animation is justified. If removing it would make no perceptible difference, the animation is waste — delete it.
+
+**Quality target:** Claude's mobile app, Apple Health, Headspace, Calm. These are the benchmarks. Not typical Flutter/Material demo animations. Not Material's default `Curves.fastOutSlowIn` on everything. Tracely's motion should feel handcrafted, not framework-default.
+
+**Required characteristics:**
+
+- **Slow acceleration into motion, smooth deceleration out of it.** Elements should feel like they're easing into existence, not snapping on. Decelerate curves are preferred over symmetric ease-in-out for entrances.
+- **No abrupt fades.** Opacity transitions always span at least 150ms. An element appearing in under 100ms reads as a glitch, not an animation.
+- **No bouncy or aggressive springs.** Tracely is calm. Spring simulations, elastic curves, and aggressive overshoots have no place here. **The one deliberate exception:** the `easeOutBack` overshoot on habit completion (§5.4, phase 1: scale bounce 1.0→0.85→1.1→1.0). That single, isolated overshoot is an intentional celebration — it communicates "something satisfying just happened." It must not be "fixed," normalized, or flattened by future agents. It is the only place in the entire app where overshoot is appropriate.
+- **Overlapping timelines, not sequential blocking.** Elements should begin entering before the previous element has finished. This creates a flowing, cascading feel rather than a slide-deck-like step-through.
+- **Generous breathing space between elements.** Stagger gaps should feel unhurried. When in doubt, add 30ms more gap, not less.
+- **Subtle rather than dramatic opacity and scale changes.** A slide-up of 20px with a fade feels elegant. A slide-up of 60px with a scale from 0.5→1.0 feels like a PowerPoint transition. Keep transforms small and understated.
+
+**The explicit rule:** If an animation would work fine as a hard cut, it doesn't need to exist. If it needs to exist, it should never be sudden.
 
 ### 5.1 The Parent-Controller + Interval Pattern
 
@@ -668,7 +794,8 @@ Total duration: **1500ms** (slightly longer — this screen is visited less ofte
 | `OverallHeatmapCard` | 0.08–0.40 | Opacity, then cells fill in a wave pattern left→right, top→bottom with 15ms stagger per cell |
 | `StreakDisplayCard` | 0.25–0.50 | Opacity + TranslateY, then streak numbers count up from 0 to actual value |
 | `WeeklyInsightsCard` | 0.35–0.55 | Opacity + TranslateY |
-| `CompletionTrendChart` | 0.40–0.75 | Opacity, then line draws from left to right (path animation) |
+| `MostCommonReasonsCard` | 0.40–0.57 | Opacity + TranslateY (only if card is visible — skipped when fewer than 3 reflections exist) |
+| `CompletionTrendChart` | 0.45–0.75 | Opacity, then line draws from left to right (path animation) |
 | `HabitBreakdownList` | 0.55–0.80 | Staggered item entrance (same dynamic stagger as dashboard habits) |
 | `MonthlyCalendarView` | 0.70–0.95 | Opacity + scale 0.97→1.0 |
 
@@ -794,6 +921,12 @@ Example:
 ---
 
 ## 7. Theming Extension Notes
+
+### Color Voice
+
+Colors in Tracely read as **warm, organic, paper-like, natural, earthy, and comfortable**. The Stone & Sand palette is inspired by aged paper, natural stone, dried clay, morning sunlight, and forest floors — not screens. Every color should feel like it could exist in a physical journal or a well-lit study.
+
+**Explicitly forbidden:** Neon colors, gaming-style saturation, cyberpunk/synthwave palettes, and glass/blur effects used decoratively. Glassmorphism and backdrop blur are only acceptable when they demonstrably improve visual hierarchy — e.g., a modal bottom sheet over scrollable content where the blur communicates "this content is behind you, focus here." Blur is never a default aesthetic layer, never used on cards, never used on navigation bars, and never used as a background treatment just because it "looks modern."
 
 ### Principle: Extend, Never Replace
 
@@ -1063,6 +1196,43 @@ class DailyReflections extends Table {
 }
 ```
 
+### 8.4a Habit Reflections Table (Pause & Reflect)
+
+This table stores the user's response to the Pause & Reflect flow (§4.5). It is **intentionally separate** from `DailyReflections` (§8.4). `DailyReflections` captures the morning mood/quote check-in from the Daily Opening Ritual — the user's emotional state as they begin their day. `HabitReflections` captures the end-of-day (or next-morning) "what got in the way" check-in — a reflection on what happened after the day played out. These are two distinct emotional touchpoints occurring at different moments with different data shapes. Merging them would conflate purpose and complicate queries for both features.
+
+```dart
+// lib/data/database/tables/habit_reflections_table.dart
+
+import 'package:drift/drift.dart';
+
+class HabitReflections extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// The calendar day being reflected on (normalized to midnight).
+  DateTimeColumn get reflectionDate => dateTime()();
+
+  /// JSON array of selected category keys, e.g. ["energy","mind"].
+  /// Capped at 2 entries at the application layer.
+  TextColumn get reasonCategories => text()();
+
+  /// JSON array of the specific selected labels within those categories,
+  /// e.g. ["Low Energy","Procrastinated"].
+  TextColumn get reasonLabels => text()();
+
+  /// Optional custom free-text reason ("My Reason").
+  TextColumn get customReason => text().nullable()();
+
+  /// Optional single follow-up answer, if a follow-up was shown.
+  TextColumn get followUpAnswer => text().nullable()();
+
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// One reflection entry per day.
+  @override
+  List<Set<Column>> get uniqueKeys => [{reflectionDate}];
+}
+```
+
 ### 8.5 Database Class
 
 ```dart
@@ -1075,13 +1245,14 @@ import 'tables/categories_table.dart';
 import 'tables/habits_table.dart';
 import 'tables/habit_completions_table.dart';
 import 'tables/daily_reflections_table.dart';
+import 'tables/habit_reflections_table.dart';
 import 'daos/habit_dao.dart';
 import 'daos/completion_dao.dart';
 import 'daos/category_dao.dart';
 import 'daos/reflection_dao.dart';
 
 @DriftDatabase(
-  tables: [Categories, Habits, HabitCompletions, DailyReflections],
+  tables: [Categories, Habits, HabitCompletions, DailyReflections, HabitReflections],
   daos: [HabitDao, CompletionDao, CategoryDao, ReflectionDao],
 )
 class AppDatabase extends _$AppDatabase {
@@ -1165,6 +1336,19 @@ Future<StreakData> getStreakData(int habitId);
 
 /// Get overall streak data (across all habits)
 Future<StreakData> getOverallStreakData();
+
+
+// ReflectionDao — Pause & Reflect methods:
+
+/// Check if a habit reflection exists for a given date
+Future<bool> hasHabitReflection(DateTime date);
+
+/// Insert a habit reflection entry
+Future<int> createHabitReflection(HabitReflectionsCompanion reflection);
+
+/// Watch most common reflection reason categories over N days,
+/// returned as a ranked list of (category, percentage) pairs.
+Stream<List<ReasonFrequency>> watchMostCommonReasons({required int days});
 ```
 
 ### 8.7 Data Classes (not Drift tables — pure Dart)
@@ -1213,19 +1397,26 @@ class WeeklyInsight {
   final String? mostConsistentDay; // "Wednesday"
   final double weeklyCompletionRate;
 }
+
+class ReasonFrequency {
+  final String category;    // "energy", "time", "mind", "environment", "personal"
+  final String emoji;        // "🌱", "⏰", "🧠", "🌍", "❤️"
+  final int count;
+  final double percentage;   // 0.0 to 1.0, relative to total reflections in period
+}
 ```
 
 ---
 
 ## 9. Definition of Done per Phase
 
-### Phase 2: Dashboard + Habits + Navigation
+### Phase 2: Dashboard + Habits + Navigation + Pause & Reflect
 
-**Scope:** Build the daily experience — the user can create habits, see them on a dashboard, complete them, and navigate between screens.
+**Scope:** Build the daily experience — the user can create habits, see them on a dashboard, complete them, navigate between screens, and reflect on missed habits.
 
 **Completion Criteria (ALL must be true):**
 
-- [ ] **Database operational** — `AppDatabase` with all four tables created, migrated, and seeded with default categories. `build_runner` has been run successfully. The app launches without DB errors.
+- [ ] **Database operational** — `AppDatabase` with all five tables (Categories, Habits, HabitCompletions, DailyReflections, HabitReflections) created, migrated, and seeded with default categories. `build_runner` has been run successfully. The app launches without DB errors.
 - [ ] **Categories seeded** — 7 default categories exist in DB on first launch.
 - [ ] **Create habit flow** — User can navigate to Add Habit screen, enter a name, pick a category, select frequency, and save. Habit persists in DB across app restarts.
 - [ ] **Edit habit flow** — User can navigate to Edit Habit screen, modify any field, and save changes.
@@ -1239,6 +1430,10 @@ class WeeklyInsight {
 - [ ] **Reflection → Dashboard** — "Continue" button on Reflection screen navigates to Dashboard with fade transition.
 - [ ] **Routing complete** — All routes defined in `app_router.dart`. Deep linking works (e.g. `/habits/edit/3`).
 - [ ] **Empty states** — Dashboard shows warm empty state when no habits exist. Habits list shows warm empty state when no habits exist.
+- [ ] **HabitReflections table operational** — `HabitReflections` Drift table created and included in `AppDatabase`. DAO methods for creating and querying reflections work correctly.
+- [ ] **Pause & Reflect trigger logic** — On app open, the app checks if the prior day had missed habits and no existing `HabitReflections` entry for that date. If conditions met, `PauseAndReflectSheet` is presented.
+- [ ] **PauseAndReflectSheet UI** — Bottom sheet renders correctly with header, 6 reason categories, multi-select (capped at 2), conditional follow-up question, "Continue" / "Done" footer, and "Not now" dismiss. Entrance animation uses staggered reason-card fade-in.
+- [ ] **Pause & Reflect data persistence** — Selected reasons, custom text, and follow-up answer persist to `HabitReflections` table. Dismissing via "Not now" records nothing and does not re-prompt that day.
 - [ ] **All theme tokens used** — Zero hardcoded colors, spacing, radii, durations, curves, or sizes in any widget file.
 - [ ] **Offline works** — Everything functions with airplane mode on. No network calls.
 - [ ] **No lint warnings** — `dart analyze` produces zero warnings.
@@ -1250,13 +1445,14 @@ class WeeklyInsight {
 
 ### Phase 3: Statistics + Insights
 
-**Scope:** Build the reflection/insights experience — the user can see their consistency over time through beautiful, calm visualizations.
+**Scope:** Build the reflection/insights experience — the user can see their consistency over time through beautiful, calm visualizations, including patterns from their Pause & Reflect responses.
 
 **Completion Criteria (ALL must be true):**
 
 - [ ] **Overall heatmap renders** — GitHub-style heatmap showing last 3 months of data. Cells colored from `AppColors.heatmap[0..4]`. Animated entrance with wave fill pattern.
 - [ ] **Streak display works** — Current and longest streaks shown. "Personal best!" badge appears when current ≥ longest. Zero-streak copy is encouraging, not punishing.
 - [ ] **Weekly insights generate** — Auto-generated 2–3 sentence positive insight based on this week's data. Changes weekly.
+- [ ] **Most common reasons card renders** — `MostCommonReasonsCard` displays ranked breakdown of reflection categories from last 30 days. Hidden when fewer than 3 reflection entries exist.
 - [ ] **Completion trend chart** — Line chart via `fl_chart` showing last 30 days. Toggle between 7d/30d/90d. Bezier curves, smooth, minimal axes. Line draws from left to right on entrance.
 - [ ] **Habit breakdown list** — Per-habit cards showing completion rate bar + streak. Tapping expands to show individual heatmap.
 - [ ] **Monthly calendar view** — Clean calendar with completion dots. Swipe to change months. Today circled.
@@ -1292,6 +1488,7 @@ class WeeklyInsight {
 | **Habit grouping / sub-habits** | Adds complexity. Categories are sufficient grouping. |
 | **Import from other apps** | Phase 5. |
 | **Sound effects** | Phase 4+ (if §6.3 is approved). |
+| **AI/ML pattern analysis on reflection data** | Collect first, analyze later. No AI until sufficient data exists across real usage. Schema is designed to support this later without migration. |
 
 ---
 
@@ -1307,35 +1504,37 @@ When building Phase 2, create files in this order to avoid import errors:
 6. `lib/data/database/tables/habits_table.dart`
 7. `lib/data/database/tables/habit_completions_table.dart`
 8. `lib/data/database/tables/daily_reflections_table.dart`
-9. `lib/data/database/app_database.dart`
-10. Run `dart run build_runner build --delete-conflicting-outputs`
-11. `lib/data/database/daos/category_dao.dart`
-12. `lib/data/database/daos/habit_dao.dart`
-13. `lib/data/database/daos/completion_dao.dart`
-14. `lib/data/database/daos/reflection_dao.dart`
-15. `lib/data/services/database_service.dart` (Riverpod provider for DB singleton)
-16. `lib/data/repositories/habit_repository.dart`
-17. `lib/data/repositories/completion_repository.dart`
-18. `lib/data/repositories/category_repository.dart`
-19. `lib/core/utils/greeting_utils.dart`
-20. `lib/core/utils/streak_calculator.dart`
-21. `lib/core/widgets/tracely_card.dart`
-22. `lib/core/widgets/tracely_empty_state.dart`
-23. `lib/core/widgets/tracely_shimmer.dart`
-24. `lib/core/widgets/section_header.dart`
-25. `lib/core/widgets/animated_list_item.dart`
-26. **Shell & Navigation:**
-27. `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
-28. `lib/features/dashboard/presentation/widgets/` (all 6 section widgets)
-29. `lib/features/habits/presentation/screens/habits_screen.dart`
-30. `lib/features/habits/presentation/screens/add_habit_screen.dart`
-31. `lib/features/habits/presentation/screens/edit_habit_screen.dart`
-32. `lib/features/habits/presentation/widgets/` (HabitTile, HabitCompletionCheckbox, CategoryPicker, FrequencySelector, etc.)
-33. Update `lib/app/router/app_router.dart` with all new routes + ShellRoute
-34. Update `lib/features/reflection/presentation/widgets/animated_continue_button.dart` to navigate to `/dashboard`
-35. Theme extensions (add new tokens to existing files)
-36. Run `dart analyze` — fix all issues
-37. Manual testing of all flows
+9. `lib/data/database/tables/habit_reflections_table.dart`
+10. `lib/data/database/app_database.dart`
+11. Run `dart run build_runner build --delete-conflicting-outputs`
+12. `lib/data/database/daos/category_dao.dart`
+13. `lib/data/database/daos/habit_dao.dart`
+14. `lib/data/database/daos/completion_dao.dart`
+15. `lib/data/database/daos/reflection_dao.dart`
+16. `lib/data/services/database_service.dart` (Riverpod provider for DB singleton)
+17. `lib/data/repositories/habit_repository.dart`
+18. `lib/data/repositories/completion_repository.dart`
+19. `lib/data/repositories/category_repository.dart`
+20. `lib/core/utils/greeting_utils.dart`
+21. `lib/core/utils/streak_calculator.dart`
+22. `lib/core/widgets/tracely_card.dart`
+23. `lib/core/widgets/tracely_empty_state.dart`
+24. `lib/core/widgets/tracely_shimmer.dart`
+25. `lib/core/widgets/section_header.dart`
+26. `lib/core/widgets/animated_list_item.dart`
+27. **Shell & Navigation:**
+28. `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
+29. `lib/features/dashboard/presentation/widgets/` (all 6 section widgets)
+30. `lib/features/habits/presentation/screens/habits_screen.dart`
+31. `lib/features/habits/presentation/screens/add_habit_screen.dart`
+32. `lib/features/habits/presentation/screens/edit_habit_screen.dart`
+33. `lib/features/habits/presentation/widgets/` (HabitTile, HabitCompletionCheckbox, CategoryPicker, FrequencySelector, etc.)
+34. `lib/features/dashboard/presentation/widgets/pause_and_reflect_sheet.dart`
+35. Update `lib/app/router/app_router.dart` with all new routes + ShellRoute
+36. Update `lib/features/reflection/presentation/widgets/animated_continue_button.dart` to navigate to `/dashboard`
+37. Theme extensions (add new tokens to existing files)
+38. Run `dart analyze` — fix all issues
+39. Manual testing of all flows
 
 ## Appendix B: Package Dependencies to Add
 
@@ -1358,6 +1557,6 @@ dependencies:
 
 **Note on heatmap:** The `flutter_heatmap_calendar` package mentioned in the original spec may not offer sufficient styling control for the Stone & Sand palette. Recommend building a custom `TracelyHeatmap` widget using a `Wrap` or `GridView.builder` with `Container` cells colored from `AppColors.heatmap`. This gives full control over cell radius, spacing, animation, and the recovery-day overlay. Total implementation: ~100–150 lines for the widget + ~50 lines for the data mapping. Well worth the control it provides.
 
----cl
+---
 
 *End of plan. This document is the complete, self-contained specification for building Tracely from Phase 2 onward. Every widget, every animation, every database table, every emotional design decision is specified. Build beautifully.*

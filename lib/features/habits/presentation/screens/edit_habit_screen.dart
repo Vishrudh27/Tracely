@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +44,11 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
   }
 
   bool get _canSave =>
-      _nameController.text.trim().isNotEmpty && _selectedCategory != null;
+      _nameController.text.trim().isNotEmpty &&
+      _selectedCategory != null &&
+      // "Specific days" with nothing picked saves a null config, which the
+      // scheduler reads as "every day" — block it instead of silently lying.
+      (_frequencyType != 'specific_days' || _specificDays.isNotEmpty);
 
   void _loadHabit(Habit habit, List<Category> categories) {
     if (_isLoaded) return;
@@ -50,8 +56,22 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     _nameController.text = habit.name;
     _selectedEmoji = habit.emoji;
     _frequencyType = habit.frequencyType;
+    // Without this the chosen weekdays came back empty, so saving any edit
+    // wrote a null config and quietly turned the habit back into a daily one.
+    _specificDays = _parseSpecificDays(habit.frequencyConfig);
     _selectedCategory =
         categories.where((c) => c.id == habit.categoryId).firstOrNull;
+  }
+
+  static List<int> _parseSpecificDays(String? config) {
+    if (config == null || config.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(config);
+      if (decoded is! List) return [];
+      return decoded.whereType<num>().map((d) => d.toInt()).toList();
+    } on FormatException {
+      return [];
+    }
   }
 
   Future<void> _save() async {

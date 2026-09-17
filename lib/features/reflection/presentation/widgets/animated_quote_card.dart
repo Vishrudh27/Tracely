@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/quote_constants.dart';
 
+/// Animated quote card shown on the Daily Opening Ritual (ReflectionScreen).
+///
+/// Quote is selected deterministically by day-of-year via QuoteConstants.todaysQuote()
+/// so the user sees a different quote each day, but the same quote all day long.
+///
+/// Entrance animation (within the 2000ms ReflectionScreen controller):
+///   Opacity:  Interval(0.45, 0.75) — easeOut fade-in
+///   Slide:    Interval(0.45, 0.80) — easeOutCubic, 40px → 0
+///   Glow:     Interval(0.55, 0.90) — easeOut warm glow under card
 class AnimatedQuoteCard extends StatelessWidget {
   const AnimatedQuoteCard({super.key, required this.controller});
 
@@ -9,6 +19,9 @@ class AnimatedQuoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Select today's quote deterministically (same quote all day, new each day)
+    final quote = QuoteConstants.todaysQuote();
+
     final opacity = CurvedAnimation(
       parent: controller,
       curve: const Interval(0.45, 0.75, curve: Curves.easeOut),
@@ -67,7 +80,7 @@ class AnimatedQuoteCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.lg),
 
                       Text(
-                        '"Small disciplines repeated\nwith consistency lead to\nremarkable achievements."',
+                        quote.text,
                         textAlign: TextAlign.center,
                         style: AppTypography.textTheme.titleLarge?.copyWith(
                           height: 1.6,
@@ -79,7 +92,7 @@ class AnimatedQuoteCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.xl),
 
                       Text(
-                        "— John C. Maxwell",
+                        quote.author,
                         style: AppTypography.textTheme.bodyMedium?.copyWith(
                           color: AppColors.textSecondary,
                           fontStyle: FontStyle.italic,

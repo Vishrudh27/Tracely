@@ -12,6 +12,7 @@ import 'daos/reflection_dao.dart';
 import 'tables/categories_table.dart';
 import 'tables/daily_reflections_table.dart';
 import 'tables/habit_completions_table.dart';
+import 'tables/habit_reflections_table.dart';
 import 'tables/habits_table.dart';
 
 part 'app_database.g.dart';
@@ -19,9 +20,18 @@ part 'app_database.g.dart';
 /// The single Drift database for Tracely.
 ///
 /// Offline-first: all data lives in a local SQLite file.
-/// Schema version starts at 1. Migrations added as schema evolves.
+///
+/// Schema history:
+///   v1 — initial: Categories, Habits, HabitCompletions, DailyReflections
+///   v2 — added HabitReflections (Pause & Reflect, §8.4a)
 @DriftDatabase(
-  tables: [Categories, Habits, HabitCompletions, DailyReflections],
+  tables: [
+    Categories,
+    Habits,
+    HabitCompletions,
+    DailyReflections,
+    HabitReflections,
+  ],
   daos: [CategoryDao, HabitDao, CompletionDao, ReflectionDao],
 )
 class AppDatabase extends _$AppDatabase {
@@ -30,13 +40,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
           await _seedDefaultCategories();
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 2) {
+            // v1 → v2: create the HabitReflections table
+            await m.createTable(habitReflections);
+          }
         },
       );
 
