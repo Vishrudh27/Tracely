@@ -19,7 +19,7 @@ final class StreakCalculator {
 
     final sorted = _sortedUniqueDays(completionDates);
     final today = DateTime.now().startOfDay;
-    final yesterday = today.subtract(const Duration(days: 1));
+    final yesterday = today.addDays(-1);
 
     // Streak is alive if the last completion was today or yesterday.
     if (!sorted.last.isSameDay(today) && !sorted.last.isSameDay(yesterday)) {
@@ -28,7 +28,7 @@ final class StreakCalculator {
 
     int streak = 1;
     for (int i = sorted.length - 1; i > 0; i--) {
-      final diff = sorted[i].difference(sorted[i - 1]).inDays;
+      final diff = sorted[i].calendarDaysSince(sorted[i - 1]);
       if (diff == 1) {
         streak++;
       } else {
@@ -47,7 +47,7 @@ final class StreakCalculator {
     int current = 1;
 
     for (int i = 1; i < sorted.length; i++) {
-      final diff = sorted[i].difference(sorted[i - 1]).inDays;
+      final diff = sorted[i].calendarDaysSince(sorted[i - 1]);
       if (diff == 1) {
         current++;
         if (current > longest) longest = current;

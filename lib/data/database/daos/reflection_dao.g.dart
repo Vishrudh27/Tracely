@@ -6,6 +6,8 @@ part of 'reflection_dao.dart';
 mixin _$ReflectionDaoMixin on DatabaseAccessor<AppDatabase> {
   $DailyReflectionsTable get dailyReflections =>
       attachedDatabase.dailyReflections;
+  $HabitReflectionsTable get habitReflections =>
+      attachedDatabase.habitReflections;
   ReflectionDaoManager get managers => ReflectionDaoManager(this);
 }
 

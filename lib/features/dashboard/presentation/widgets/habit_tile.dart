@@ -198,7 +198,7 @@ class _HabitTileState extends State<HabitTile>
                 color: borderColorAnim.value ?? AppColors.border,
                 width: isCompleted ? 1.2 : 1.0,
               ),
-              boxShadow: isCompleted ? AppShadows.sm : AppShadows.sm,
+              boxShadow: AppShadows.sm,
             ),
             child: Material(
               color: Colors.transparent,

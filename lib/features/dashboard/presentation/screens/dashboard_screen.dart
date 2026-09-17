@@ -6,12 +6,16 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/extensions/date_extensions.dart';
+import '../../../../core/providers/current_date_provider.dart';
 import '../../../../core/widgets/animated_list_item.dart';
 import '../../../../core/widgets/section_header.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
 import '../../../../core/widgets/tracely_shimmer.dart';
 import '../../../../data/models/habit_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
+import '../../../../data/services/reflection_gate_service.dart';
+import '../../../reflection/presentation/widgets/pause_and_reflect_sheet.dart';
 import '../widgets/breathing_background.dart';
 import '../widgets/daily_progress_card.dart';
 import '../widgets/dashboard_greeting_section.dart';
@@ -57,11 +61,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 950),
     );
     _setupAnimations();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.forward();
+      _checkPauseAndReflect();
     });
   }
 
@@ -139,6 +144,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
+  Future<void> _checkPauseAndReflect() async {
+    // Only trigger if mounted and context is available
+    if (!mounted) return;
+
+    try {
+      // Check if there were any habits missed yesterday
+      final yesterday = ref.read(currentDateProvider).addDays(-1);
+      final missedHabits = await ref
+          .read(habitRepositoryProvider)
+          .getMissedHabitsForDate(yesterday);
+
+      if (!mounted || missedHabits.isEmpty) return;
+
+      // Gate: once per calendar day, however the sheet is answered.
+      final shouldShow = await ReflectionGateService.shouldShowPauseAndReflect();
+      if (!mounted || !shouldShow) return;
+
+      await ReflectionGateService.markPauseAndReflectShown();
+      if (!mounted) return;
+
+      await PauseAndReflectSheet.show(
+        context: context,
+        missedHabits: missedHabits,
+      );
+    } catch (_) {
+      // An optional reflection prompt must never take the dashboard down.
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -146,7 +180,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Future<void> _toggleHabit(int habitId) async {
-    await ref.read(habitRepositoryProvider).toggleCompletion(habitId);
+    final today = ref.read(currentDateProvider);
+    await ref.read(habitRepositoryProvider).toggleCompletion(habitId, today);
   }
 
   @override
@@ -175,7 +210,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               builder: (context, _) {
                 return habitsAsync.when(
                   loading: () => _buildLoadingState(),
-                  error: (err, stack) => _buildLoadingState(),
+                  error: (err, stack) => _buildErrorState(err),
                   data: (habits) {
                     if (habits.isEmpty) {
                       return _buildEmptyState();
@@ -232,6 +267,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ],
       ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Error state
+  // ---------------------------------------------------------------------------
+
+  Widget _buildErrorState(Object error) {
+    return TracelyEmptyState(
+      icon: Icons.cloud_off_rounded,
+      title: AppStrings.errorDashboardTitle,
+      body: AppStrings.errorDashboardBody,
+      ctaLabel: AppStrings.errorDashboardCta,
+      onCta: () => ref.invalidate(todaysHabitsProvider),
     );
   }
 

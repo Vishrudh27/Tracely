@@ -5,28 +5,31 @@ import '../../../../app/theme/theme.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
 import '../../../../core/widgets/tracely_shimmer.dart';
 import '../../../../data/models/habit_models.dart';
+import '../../../../data/database/daos/reflection_dao.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../widgets/completion_trend_chart.dart';
 import '../widgets/habit_breakdown_list.dart';
 import '../widgets/monthly_calendar_view.dart';
 import '../widgets/overall_heatmap_card.dart';
 import '../widgets/statistics_header.dart';
+import '../widgets/most_common_reasons_card.dart';
 import '../widgets/streak_display_card.dart';
 import '../widgets/weekly_insights_card.dart';
 
 /// Full Statistics screen — Phase 3.
 ///
-/// Entrance animation: 1500ms total, single AnimationController.
-/// All 7 sections animate in with staggered intervals per §5.5.
+/// Entrance animation: 1200ms total, single AnimationController.
+/// All 8 sections animate in with staggered intervals per §5.5.
 ///
 /// Sections:
 ///   1. StatisticsHeader           (0.00–0.15)
 ///   2. OverallHeatmapCard         (0.08–0.40) + wave fill
 ///   3. StreakDisplayCard          (0.25–0.50) + count-up
 ///   4. WeeklyInsightsCard         (0.35–0.55)
-///   5. CompletionTrendChart       (0.40–0.75) + left→right draw
-///   6. HabitBreakdownList         (0.55–0.80) staggered per item
-///   7. MonthlyCalendarView        (0.70–0.95) + scale 0.97→1.0
+///   5. MostCommonReasonsCard      (0.40–0.57) — hidden when < 3 entries
+///   6. CompletionTrendChart       (0.45–0.75) + left→right draw
+///   7. HabitBreakdownList         (0.60–0.82) staggered per item
+///   8. MonthlyCalendarView        (0.72–0.95) + scale 0.97→1.0
 class StatisticsScreen extends ConsumerStatefulWidget {
   const StatisticsScreen({super.key});
 
@@ -49,6 +52,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
   late final Animation<double> _streakCount;   // count-up 0.0→1.0
   late final Animation<double> _insightOpacity;
   late final Animation<double> _insightSlide;
+  late final Animation<double> _reasonsOpacity;
+  late final Animation<double> _reasonsSlide;
   late final Animation<double> _chartOpacity;
   late final Animation<double> _chartSlide;
   late final Animation<double> _chartDraw;     // line draw 0.0→1.0
@@ -62,7 +67,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1200),
     );
     _setupAnimations();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -127,43 +132,55 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
       ),
     );
 
-    // 5. Chart: 0.40–0.75
+    // 5. Reasons: 0.40–0.57
+    _reasonsOpacity = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.40, 0.55, curve: Curves.easeOut),
+    );
+    _reasonsSlide = Tween<double>(begin: 20, end: 0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.40, 0.57, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 6. Chart: 0.45–0.75
     _chartOpacity = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.40, 0.58, curve: Curves.easeOut),
+      curve: const Interval(0.45, 0.60, curve: Curves.easeOut),
     );
     _chartSlide = Tween<double>(begin: 20, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.40, 0.58, curve: Curves.easeOutCubic),
+        curve: const Interval(0.45, 0.60, curve: Curves.easeOutCubic),
       ),
     );
     _chartDraw = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.50, 0.75, curve: Curves.easeInOutCubic),
+      curve: const Interval(0.52, 0.75, curve: Curves.easeInOutCubic),
     );
 
-    // 6. Breakdown: 0.55–0.80
+    // 7. Breakdown: 0.60–0.82
     _breakdownOpacity = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.55, 0.72, curve: Curves.easeOut),
+      curve: const Interval(0.60, 0.75, curve: Curves.easeOut),
     );
     _breakdownSlide = Tween<double>(begin: 20, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.55, 0.75, curve: Curves.easeOutCubic),
+        curve: const Interval(0.60, 0.78, curve: Curves.easeOutCubic),
       ),
     );
 
-    // 7. Calendar: 0.70–0.95
+    // 8. Calendar: 0.72–0.95
     _calendarOpacity = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.70, 0.88, curve: Curves.easeOut),
+      curve: const Interval(0.72, 0.90, curve: Curves.easeOut),
     );
     _calendarScale = Tween<double>(begin: 0.97, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.70, 0.95, curve: Curves.easeOutCubic),
+        curve: const Interval(0.72, 0.95, curve: Curves.easeOutCubic),
       ),
     );
   }
@@ -179,8 +196,10 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     final heatmapAsync = ref.watch(heatmapDataProvider);
     final streakAsync = ref.watch(overallStreakProvider);
     final insightAsync = ref.watch(weeklyInsightProvider);
+    final reasonsAsync = ref.watch(mostCommonReasonsProvider);
     final trendAsync = ref.watch(completionTrendProvider);
     final breakdownsAsync = ref.watch(habitBreakdownsProvider);
+    final daysSinceStart = ref.watch(daysSinceStartProvider).asData?.value ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -203,8 +222,10 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
                   heatmapData: heatmapData,
                   streakAsync: streakAsync,
                   insightAsync: insightAsync,
+                  reasonsAsync: reasonsAsync,
                   trendAsync: trendAsync,
                   breakdownsAsync: breakdownsAsync,
+                  daysSinceStart: daysSinceStart,
                 );
               },
             );
@@ -266,11 +287,14 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     required Map<DateTime, double> heatmapData,
     required AsyncValue<StreakData> streakAsync,
     required AsyncValue<WeeklyInsight> insightAsync,
+    required AsyncValue<List<ReasonFrequency>> reasonsAsync,
     required AsyncValue<List<DailyCompletion>> trendAsync,
     required AsyncValue<List<HabitBreakdown>> breakdownsAsync,
+    required int daysSinceStart,
   }) {
     final streak = streakAsync.asData?.value;
     final insight = insightAsync.asData?.value;
+    final reasons = reasonsAsync.asData?.value ?? <ReasonFrequency>[];
     final trendData = trendAsync.asData?.value ?? <DailyCompletion>[];
     final breakdowns = breakdownsAsync.asData?.value ?? <HabitBreakdown>[];
 
@@ -287,6 +311,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
               StatisticsHeader(
                 opacity: _headerOpacity.value,
                 translateY: _headerSlide.value,
+                daysSinceStart: daysSinceStart,
               ),
 
               const SizedBox(height: AppSpacing.sectionGap),
@@ -328,7 +353,18 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
 
               const SizedBox(height: AppSpacing.sectionGap),
 
-              // 5. Completion trend chart
+              // 5. Most common reasons (hidden if < 3 entries)
+              MostCommonReasonsCard(
+                reasons: reasons,
+                opacity: _reasonsOpacity.value,
+                translateY: _reasonsSlide.value,
+              ),
+
+              // Only add spacing if the card is actually visible
+              if (reasons.length >= 3)
+                const SizedBox(height: AppSpacing.sectionGap),
+
+              // 6. Completion trend chart
               CompletionTrendChart(
                 trendData: trendData,
                 opacity: _chartOpacity.value,
@@ -341,7 +377,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
           ),
         ),
 
-        // 6. Habit breakdown list (staggered items)
+        // 7. Habit breakdown list (staggered items)
         if (breakdowns.isNotEmpty)
           SliverToBoxAdapter(
             child: HabitBreakdownList(
@@ -349,12 +385,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
               opacity: _breakdownOpacity.value,
               translateY: _breakdownSlide.value,
               controller: _controller,
-              intervalStart: 0.55,
-              intervalEnd: 0.80,
+              intervalStart: 0.60,
+              intervalEnd: 0.82,
             ),
           ),
 
-        // 7. Monthly calendar
+        // 8. Monthly calendar
         SliverToBoxAdapter(
           child: Column(
             children: [

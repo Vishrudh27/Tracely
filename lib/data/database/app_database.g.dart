@@ -2091,6 +2091,412 @@ class DailyReflectionsCompanion extends UpdateCompanion<DailyReflection> {
   }
 }
 
+class $HabitReflectionsTable extends HabitReflections
+    with TableInfo<$HabitReflectionsTable, HabitReflection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HabitReflectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _habitIdMeta = const VerificationMeta('habitId');
+  @override
+  late final GeneratedColumn<int> habitId = GeneratedColumn<int>(
+    'habit_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES habits (id)',
+    ),
+  );
+  static const VerificationMeta _missedDateMeta = const VerificationMeta(
+    'missedDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> missedDate = GeneratedColumn<DateTime>(
+    'missed_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _followUpAnswerMeta = const VerificationMeta(
+    'followUpAnswer',
+  );
+  @override
+  late final GeneratedColumn<String> followUpAnswer = GeneratedColumn<String>(
+    'follow_up_answer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        habitId,
+        missedDate,
+        reason,
+        followUpAnswer,
+        createdAt,
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'habit_reflections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HabitReflection> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('habit_id')) {
+      context.handle(
+        _habitIdMeta,
+        habitId.isAcceptableOrUnknown(data['habit_id']!, _habitIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_habitIdMeta);
+    }
+    if (data.containsKey('missed_date')) {
+      context.handle(
+        _missedDateMeta,
+        missedDate.isAcceptableOrUnknown(data['missed_date']!, _missedDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_missedDateMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasonMeta);
+    }
+    if (data.containsKey('follow_up_answer')) {
+      context.handle(
+        _followUpAnswerMeta,
+        followUpAnswer.isAcceptableOrUnknown(
+          data['follow_up_answer']!,
+          _followUpAnswerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HabitReflection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HabitReflection(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      habitId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}habit_id'],
+      )!,
+      missedDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}missed_date'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      )!,
+      followUpAnswer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}follow_up_answer'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $HabitReflectionsTable createAlias(String alias) {
+    return $HabitReflectionsTable(attachedDatabase, alias);
+  }
+}
+
+class HabitReflection extends DataClass
+    implements Insertable<HabitReflection> {
+  final int id;
+  final int habitId;
+  final DateTime missedDate;
+  final String reason;
+  final String? followUpAnswer;
+  final DateTime createdAt;
+
+  const HabitReflection({
+    required this.id,
+    required this.habitId,
+    required this.missedDate,
+    required this.reason,
+    this.followUpAnswer,
+    required this.createdAt,
+  });
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['habit_id'] = Variable<int>(habitId);
+    map['missed_date'] = Variable<DateTime>(missedDate);
+    map['reason'] = Variable<String>(reason);
+    if (!nullToAbsent || followUpAnswer != null) {
+      map['follow_up_answer'] = Variable<String>(followUpAnswer);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  HabitReflectionsCompanion toCompanion(bool nullToAbsent) {
+    return HabitReflectionsCompanion(
+      id: Value(id),
+      habitId: Value(habitId),
+      missedDate: Value(missedDate),
+      reason: Value(reason),
+      followUpAnswer: followUpAnswer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(followUpAnswer),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory HabitReflection.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HabitReflection(
+      id: serializer.fromJson<int>(json['id']),
+      habitId: serializer.fromJson<int>(json['habitId']),
+      missedDate: serializer.fromJson<DateTime>(json['missedDate']),
+      reason: serializer.fromJson<String>(json['reason']),
+      followUpAnswer: serializer.fromJson<String?>(json['followUpAnswer']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'habitId': serializer.toJson<int>(habitId),
+      'missedDate': serializer.toJson<DateTime>(missedDate),
+      'reason': serializer.toJson<String>(reason),
+      'followUpAnswer': serializer.toJson<String?>(followUpAnswer),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  HabitReflection copyWith({
+    int? id,
+    int? habitId,
+    DateTime? missedDate,
+    String? reason,
+    Value<String?> followUpAnswer = const Value.absent(),
+    DateTime? createdAt,
+  }) =>
+      HabitReflection(
+        id: id ?? this.id,
+        habitId: habitId ?? this.habitId,
+        missedDate: missedDate ?? this.missedDate,
+        reason: reason ?? this.reason,
+        followUpAnswer: followUpAnswer.present
+            ? followUpAnswer.value
+            : this.followUpAnswer,
+        createdAt: createdAt ?? this.createdAt,
+      );
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitReflection(')
+          ..write('id: $id, ')
+          ..write('habitId: $habitId, ')
+          ..write('missedDate: $missedDate, ')
+          ..write('reason: $reason, ')
+          ..write('followUpAnswer: $followUpAnswer, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        habitId,
+        missedDate,
+        reason,
+        followUpAnswer,
+        createdAt,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HabitReflection &&
+          other.id == this.id &&
+          other.habitId == this.habitId &&
+          other.missedDate == this.missedDate &&
+          other.reason == this.reason &&
+          other.followUpAnswer == this.followUpAnswer &&
+          other.createdAt == this.createdAt);
+}
+
+class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
+  final Value<int> id;
+  final Value<int> habitId;
+  final Value<DateTime> missedDate;
+  final Value<String> reason;
+  final Value<String?> followUpAnswer;
+  final Value<DateTime> createdAt;
+
+  const HabitReflectionsCompanion({
+    this.id = const Value.absent(),
+    this.habitId = const Value.absent(),
+    this.missedDate = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.followUpAnswer = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+
+  HabitReflectionsCompanion.insert({
+    this.id = const Value.absent(),
+    required int habitId,
+    required DateTime missedDate,
+    required String reason,
+    this.followUpAnswer = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  })  : habitId = Value(habitId),
+        missedDate = Value(missedDate),
+        reason = Value(reason);
+
+  static Insertable<HabitReflection> custom({
+    Expression<int>? id,
+    Expression<int>? habitId,
+    Expression<DateTime>? missedDate,
+    Expression<String>? reason,
+    Expression<String>? followUpAnswer,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (habitId != null) 'habit_id': habitId,
+      if (missedDate != null) 'missed_date': missedDate,
+      if (reason != null) 'reason': reason,
+      if (followUpAnswer != null) 'follow_up_answer': followUpAnswer,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  HabitReflectionsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? habitId,
+    Value<DateTime>? missedDate,
+    Value<String>? reason,
+    Value<String?>? followUpAnswer,
+    Value<DateTime>? createdAt,
+  }) {
+    return HabitReflectionsCompanion(
+      id: id ?? this.id,
+      habitId: habitId ?? this.habitId,
+      missedDate: missedDate ?? this.missedDate,
+      reason: reason ?? this.reason,
+      followUpAnswer: followUpAnswer ?? this.followUpAnswer,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (habitId.present) {
+      map['habit_id'] = Variable<int>(habitId.value);
+    }
+    if (missedDate.present) {
+      map['missed_date'] = Variable<DateTime>(missedDate.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (followUpAnswer.present) {
+      map['follow_up_answer'] = Variable<String>(followUpAnswer.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitReflectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('habitId: $habitId, ')
+          ..write('missedDate: $missedDate, ')
+          ..write('reason: $reason, ')
+          ..write('followUpAnswer: $followUpAnswer, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2100,6 +2506,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $DailyReflectionsTable dailyReflections = $DailyReflectionsTable(
+    this,
+  );
+  late final $HabitReflectionsTable habitReflections = $HabitReflectionsTable(
     this,
   );
   late final CategoryDao categoryDao = CategoryDao(this as AppDatabase);
@@ -2115,6 +2524,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     habits,
     habitCompletions,
     dailyReflections,
+    habitReflections,
   ];
 }
 

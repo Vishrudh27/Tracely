@@ -39,7 +39,11 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
   }
 
   bool get _canSave =>
-      _nameController.text.trim().isNotEmpty && _selectedCategory != null;
+      _nameController.text.trim().isNotEmpty &&
+      _selectedCategory != null &&
+      // "Specific days" with nothing picked saves a null config, which the
+      // scheduler reads as "every day" — block it instead of silently lying.
+      (_frequencyType != 'specific_days' || _specificDays.isNotEmpty);
 
   Future<void> _save() async {
     if (!_canSave || _isSaving) return;

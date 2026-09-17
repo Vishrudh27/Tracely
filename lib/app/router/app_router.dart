@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/services/reflection_gate_service.dart';
 import '../../features/analytics/presentation/screens/statistics_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/habits/presentation/screens/add_habit_screen.dart';
@@ -12,7 +13,7 @@ import '../shell/tracely_shell.dart';
 /// Central GoRouter configuration for Tracely.
 ///
 /// Route hierarchy:
-/// /                → ReflectionScreen (no bottom nav)
+/// /                → ReflectionScreen (no bottom nav) — morning only, once/day
 /// /dashboard       → DashboardScreen  (inside TracelyShell)
 /// /habits          → HabitsScreen     (inside TracelyShell)
 /// /habits/add      → AddHabitScreen   (full screen, no shell)
@@ -39,9 +40,15 @@ final class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: reflection,
     routes: [
-      // Reflection screen — outside the shell (no bottom navigation)
+      // Reflection screen — outside the shell (no bottom navigation).
+      // The redirect enforces the morning gate: only shown before noon,
+      // and only once per calendar day. All other opens go to /dashboard.
       GoRoute(
         path: reflection,
+        redirect: (context, state) async {
+          final show = await ReflectionGateService.shouldShowReflection();
+          return show ? null : dashboard;
+        },
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const ReflectionScreen(),

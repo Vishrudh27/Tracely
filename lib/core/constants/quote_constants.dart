@@ -90,11 +90,21 @@ final class QuoteConstants {
     ),
   ];
 
-  /// Returns the quote for today, deterministically selected by day-of-year.
-  static ({String text, String author}) todaysQuote() {
-    final dayOfYear = DateTime.now().difference(
-      DateTime(DateTime.now().year, 1, 1),
-    ).inDays;
-    return quotes[dayOfYear % quotes.length];
+  /// Returns the quote for [date] (default: today), selected by day-of-year.
+  ///
+  /// The day index is derived from the calendar date alone. The previous
+  /// version subtracted two separate `DateTime.now()` reads as a Duration,
+  /// which meant a daylight-saving shift could repeat or skip a day's quote.
+  static ({String text, String author}) todaysQuote([DateTime? date]) {
+    return quotes[dayOfYear(date ?? DateTime.now()) % quotes.length];
+  }
+
+  /// Zero-based day index within [date]'s year.
+  ///
+  /// Computed in UTC so it counts calendar days, never elapsed hours.
+  static int dayOfYear(DateTime date) {
+    return DateTime.utc(date.year, date.month, date.day)
+        .difference(DateTime.utc(date.year, 1, 1))
+        .inDays;
   }
 }
