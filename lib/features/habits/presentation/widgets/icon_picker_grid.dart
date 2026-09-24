@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 
-/// Horizontal scrollable/wrapped grid of emojis for habit customization.
+/// Wrapped grid of Material icons for habit customization.
 ///
-/// Prompts the user to pick an emoji representing their habit.
-/// Styled with generous padding and subtle selection indicator.
-class EmojiPickerGrid extends StatelessWidget {
-  const EmojiPickerGrid({
+/// Replaces the old emoji picker — same interaction (tap to select, subtle
+/// highlight on the chosen one), but every option is a recolorable vector
+/// icon from [AppIconRegistry] instead of an OS-rendered emoji glyph.
+class IconPickerGrid extends StatelessWidget {
+  const IconPickerGrid({
     super.key,
     required this.selected,
     required this.onSelected,
@@ -16,23 +18,16 @@ class EmojiPickerGrid extends StatelessWidget {
   final String? selected;
   final ValueChanged<String> onSelected;
 
-  static const List<String> _emojis = [
-    '💪', '🏃', '🚴', '🧘', '🚶', '💧', '🥗', '🍎',
-    '🧠', '📚', '✍️', '🎨', '🎹', '🎸', '💻', '💡',
-    '💤', '🧹', '🪴', '🌱', '☀️', '🍵', '🤝', '📞',
-    '❤️', '💰', '🎯', '⌛', '🔑', '🌈', '🐾', '✈️'
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Wrap(
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
-      children: _emojis.map((emoji) {
-        final isSelected = selected == emoji;
+      children: AppIconRegistry.pickerOptions.map((key) {
+        final isSelected = selected == key;
 
         return GestureDetector(
-          onTap: () => onSelected(emoji),
+          onTap: () => onSelected(key),
           child: AnimatedContainer(
             duration: AppDurations.fast,
             width: 44,
@@ -47,11 +42,10 @@ class EmojiPickerGrid extends StatelessWidget {
                 width: isSelected ? 1.5 : 1,
               ),
             ),
-            child: Center(
-              child: Text(
-                emoji,
-                style: const TextStyle(fontSize: 20),
-              ),
+            child: Icon(
+              AppIconRegistry.resolve(key),
+              size: 22,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
             ),
           ),
         );

@@ -10,7 +10,7 @@ import '../../../../data/database/app_database.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/services/database_service.dart';
 import '../widgets/category_picker.dart';
-import '../widgets/emoji_picker_grid.dart';
+import '../widgets/icon_picker_grid.dart';
 import '../widgets/frequency_selector.dart';
 
 /// Full-screen Add Habit form.
@@ -29,7 +29,7 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
   Category? _selectedCategory;
   String _frequencyType = 'daily';
   List<int> _specificDays = [];
-  String? _selectedEmoji;
+  String? _selectedIcon;
   bool _isSaving = false;
 
   @override
@@ -59,7 +59,7 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
       await db.habitDao.insertHabit(
         HabitsCompanion.insert(
           name: _nameController.text.trim(),
-          emoji: drift.Value(_selectedEmoji),
+          emoji: drift.Value(_selectedIcon),
           categoryId: _selectedCategory!.id,
           frequencyType: drift.Value(_frequencyType),
           frequencyConfig: drift.Value(frequencyConfig),
@@ -139,12 +139,12 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
                     const SizedBox(height: AppSpacing.xxxl),
 
                     // Emoji picker
-                    _buildSectionLabel('${AppStrings.emojiLabel} (optional)'),
+                    _buildSectionLabel('${AppStrings.iconLabel} (optional)'),
                     const SizedBox(height: AppSpacing.md),
-                    EmojiPickerGrid(
-                      selected: _selectedEmoji,
+                    IconPickerGrid(
+                      selected: _selectedIcon,
                       onSelected: (e) =>
-                          setState(() => _selectedEmoji = e == _selectedEmoji ? null : e),
+                          setState(() => _selectedIcon = e == _selectedIcon ? null : e),
                     ),
 
                     const SizedBox(height: AppSpacing.huge),

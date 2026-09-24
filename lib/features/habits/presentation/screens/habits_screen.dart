@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
 import '../../../../core/widgets/tracely_shimmer.dart';
+import '../../../../core/widgets/tracely_top_bar.dart';
 import '../../../../data/database/app_database.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../widgets/habit_management_tile.dart';
@@ -56,6 +58,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            TracelyTopBar(onAvatarTap: () => context.push(AppRouter.settings)),
             _buildHeader(context),
             categoriesAsync.when(
               data: (cats) => _buildCategoryFilter(cats),
@@ -177,7 +180,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         return HabitManagementTile(
           habit: habit,
           category: cat,
-          onTap: () => context.push('/habits/edit/${habit.id}'),
+          onTap: () => context.push('/habits/detail/${habit.id}'),
         );
       },
     );
@@ -255,7 +258,11 @@ class _CategoryChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (emoji != null) ...[
-              Text(emoji!, style: const TextStyle(fontSize: 12)),
+              Icon(
+                AppIconRegistry.resolve(emoji),
+                size: 12,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              ),
               const SizedBox(width: AppSpacing.xxs),
             ],
             Text(

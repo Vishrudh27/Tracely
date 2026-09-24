@@ -54,7 +54,9 @@ class StreakDisplayCard extends StatelessWidget {
                       child: _StreakColumn(
                         value: currentDisplay,
                         label: 'Current Streak',
-                        emoji: streak.currentStreak == 0 ? '🌱' : '🔥',
+                        icon: streak.currentStreak == 0
+                            ? Icons.eco_outlined
+                            : Icons.local_fire_department_rounded,
                         color: AppColors.streakActive,
                         isPrimary: true,
                       ),
@@ -69,7 +71,7 @@ class StreakDisplayCard extends StatelessWidget {
                       child: _StreakColumn(
                         value: longestDisplay,
                         label: 'Longest Streak',
-                        emoji: '🏆',
+                        icon: Icons.emoji_events_rounded,
                         color: AppColors.streakRecord,
                         isPrimary: false,
                       ),
@@ -83,7 +85,7 @@ class StreakDisplayCard extends StatelessWidget {
                   _PersonalBestBadge()
                 else if (streak.currentStreak == 0)
                   Text(
-                    'Start a new streak today 🌱',
+                    'Start a new streak today',
                     style: context.textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                       fontStyle: FontStyle.italic,
@@ -112,14 +114,14 @@ class _StreakColumn extends StatelessWidget {
   const _StreakColumn({
     required this.value,
     required this.label,
-    required this.emoji,
+    required this.icon,
     required this.color,
     required this.isPrimary,
   });
 
   final int value;
   final String label;
-  final String emoji;
+  final IconData icon;
   final Color color;
   final bool isPrimary;
 
@@ -127,10 +129,7 @@ class _StreakColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          emoji,
-          style: TextStyle(fontSize: isPrimary ? 24 : 20),
-        ),
+        Icon(icon, size: isPrimary ? 24 : 20, color: color),
         const SizedBox(height: AppSpacing.xxs),
         Text(
           '$value',
@@ -177,7 +176,7 @@ class _PersonalBestBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('✨', style: TextStyle(fontSize: 12)),
+          Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.primaryLight),
           const SizedBox(width: AppSpacing.xxs),
           Text(
             'Personal best!',

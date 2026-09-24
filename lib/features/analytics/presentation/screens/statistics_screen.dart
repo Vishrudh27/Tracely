@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
 import '../../../../core/widgets/tracely_shimmer.dart';
+import '../../../../core/widgets/tracely_top_bar.dart';
 import '../../../../data/models/habit_models.dart';
 import '../../../../data/database/daos/reflection_dao.dart';
 import '../../../../data/repositories/habit_repository.dart';
@@ -204,32 +207,39 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            // Use heatmap as the primary data indicator
-            return heatmapAsync.when(
-              loading: () => _buildLoadingState(),
-              error: (err, stack) => _buildLoadingState(),
-              data: (heatmapData) {
-                final hasData = heatmapData.isNotEmpty;
+        child: Column(
+          children: [
+            TracelyTopBar(onAvatarTap: () => context.push(AppRouter.settings)),
+            Expanded(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  // Use heatmap as the primary data indicator
+                  return heatmapAsync.when(
+                    loading: () => _buildLoadingState(),
+                    error: (err, stack) => _buildLoadingState(),
+                    data: (heatmapData) {
+                      final hasData = heatmapData.isNotEmpty;
 
-                if (!hasData) {
-                  return _buildEmptyState();
-                }
+                      if (!hasData) {
+                        return _buildEmptyState();
+                      }
 
-                return _buildContent(
-                  heatmapData: heatmapData,
-                  streakAsync: streakAsync,
-                  insightAsync: insightAsync,
-                  reasonsAsync: reasonsAsync,
-                  trendAsync: trendAsync,
-                  breakdownsAsync: breakdownsAsync,
-                  daysSinceStart: daysSinceStart,
-                );
-              },
-            );
-          },
+                      return _buildContent(
+                        heatmapData: heatmapData,
+                        streakAsync: streakAsync,
+                        insightAsync: insightAsync,
+                        reasonsAsync: reasonsAsync,
+                        trendAsync: trendAsync,
+                        breakdownsAsync: breakdownsAsync,
+                        daysSinceStart: daysSinceStart,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

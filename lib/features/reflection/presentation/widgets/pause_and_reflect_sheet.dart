@@ -22,12 +22,12 @@ class _ReasonItem {
 class _ReasonCategory {
   const _ReasonCategory({
     required this.key,
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.reasons,
   });
   final String key;
-  final String emoji;
+  final IconData icon;
   final String label;
   final List<_ReasonItem> reasons;
 }
@@ -39,7 +39,7 @@ class _ReasonCategory {
 const _kCategories = <_ReasonCategory>[
   _ReasonCategory(
     key: 'energy',
-    emoji: '🌱',
+    icon: Icons.bedtime_outlined,
     label: 'Energy',
     reasons: [
       _ReasonItem(label: 'Low Energy', key: 'low_energy'),
@@ -50,7 +50,7 @@ const _kCategories = <_ReasonCategory>[
   ),
   _ReasonCategory(
     key: 'time',
-    emoji: '⏰',
+    icon: Icons.schedule_outlined,
     label: 'Time',
     reasons: [
       _ReasonItem(label: 'Too Busy', key: 'too_busy'),
@@ -61,7 +61,7 @@ const _kCategories = <_ReasonCategory>[
   ),
   _ReasonCategory(
     key: 'mind',
-    emoji: '🧠',
+    icon: Icons.psychology_outlined,
     label: 'Mind',
     reasons: [
       _ReasonItem(label: 'Lost Motivation', key: 'lost_motivation'),
@@ -73,7 +73,7 @@ const _kCategories = <_ReasonCategory>[
   ),
   _ReasonCategory(
     key: 'environment',
-    emoji: '🌍',
+    icon: Icons.public_outlined,
     label: 'Environment',
     reasons: [
       _ReasonItem(label: 'Traveling', key: 'traveling'),
@@ -84,7 +84,7 @@ const _kCategories = <_ReasonCategory>[
   ),
   _ReasonCategory(
     key: 'personal',
-    emoji: '❤️',
+    icon: Icons.favorite_outline,
     label: 'Personal',
     reasons: [
       _ReasonItem(label: 'Needed Rest', key: 'needed_rest'),
@@ -108,11 +108,11 @@ class _FollowUp {
 const _kFollowUpMap = <String, _FollowUp>{
   'low_energy': _FollowUp(
     question: 'How was your energy?',
-    options: ['🙂 Great', '😐 Okay', '😴 Very Low'],
+    options: ['Great', 'Okay', 'Very Low'],
   ),
   'poor_sleep': _FollowUp(
     question: 'How did you sleep?',
-    options: ['😴 Badly', '😐 Okay', '😊 Well'],
+    options: ['Badly', 'Okay', 'Well'],
   ),
   'too_busy': _FollowUp(
     question: 'What kept you busy?',
@@ -372,7 +372,11 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Leaf icon + header text
-                    const Text('🌿', style: TextStyle(fontSize: 32)),
+                    const Icon(
+                      Icons.eco_outlined,
+                      size: 32,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(height: AppSpacing.lg),
 
                     Text(
@@ -484,7 +488,7 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
       children: [
         Row(
           children: [
-            const Text('✍️', style: TextStyle(fontSize: 16)),
+            const Icon(Icons.edit_outlined, size: 16, color: AppColors.textPrimary),
             const SizedBox(width: AppSpacing.sm),
             Text(
               'My Reason',
@@ -630,9 +634,9 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              '🌱 Tomorrow, we\'ll try again.',
+              "Tomorrow, we'll try again.",
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textDisabled,
+                color: AppColors.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -666,7 +670,7 @@ class _CategorySection extends StatelessWidget {
         // Category label
         Row(
           children: [
-            Text(category.emoji, style: const TextStyle(fontSize: 16)),
+            Icon(category.icon, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: AppSpacing.sm),
             Text(
               category.label,

@@ -137,7 +137,7 @@ class DailyProgressCard extends StatelessWidget {
                       if (progress.allDone) ...[
                         const SizedBox(height: AppSpacing.sm),
                         Text(
-                          '🌟 All done!',
+                          'All done!',
                           style: context.textTheme.labelMedium?.copyWith(
                             color: AppColors.primaryLight,
                             fontWeight: FontWeight.w600,

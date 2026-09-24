@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/models/habit_models.dart';
 
 /// A single habit tile shown in the "Today's Habits" section.
 ///
-/// Shows the habit emoji, name, category dot, and a completion checkbox.
+/// Shows the habit icon, name, category dot, and a completion checkbox.
 /// The checkbox has a rich multi-phase micro-animation per §5.4:
 ///   Phase 1: Scale bounce (spring overshoot)
 ///   Phase 2: Fill morph (empty → filled with checkmark)
@@ -215,10 +216,11 @@ class _HabitTileState extends State<HabitTile>
                       _CategoryDot(colorValue: widget.habit.categoryColorValue),
                       const SizedBox(width: AppSpacing.md),
 
-                      // Habit emoji
-                      Text(
-                        widget.habit.emoji,
-                        style: const TextStyle(fontSize: 20),
+                      // Habit icon
+                      Icon(
+                        AppIconRegistry.resolve(widget.habit.emoji),
+                        size: 20,
+                        color: textColorAnim.value,
                       ),
                       const SizedBox(width: AppSpacing.md),
 

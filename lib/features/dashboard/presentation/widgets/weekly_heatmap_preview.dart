@@ -57,7 +57,7 @@ class WeeklyHeatmapPreview extends StatelessWidget {
                       ),
                       Icon(
                         Icons.chevron_right_rounded,
-                        color: AppColors.textDisabled,
+                        color: AppColors.textSecondary,
                         size: AppSizes.iconMd,
                       ),
                     ],
@@ -78,7 +78,7 @@ class WeeklyHeatmapPreview extends StatelessWidget {
                             style: context.textTheme.labelSmall?.copyWith(
                               color: isToday
                                   ? AppColors.primary
-                                  : AppColors.textDisabled,
+                                  : AppColors.textSecondary,
                               fontWeight: isToday
                                   ? FontWeight.w700
                                   : FontWeight.w500,

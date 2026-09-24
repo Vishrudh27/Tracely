@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/database/app_database.dart';
 
 /// Grid of category cards for the Add/Edit Habit form.
 ///
-/// Each card shows the category emoji + name.
+/// Each card shows the category icon + name.
 /// Selected state: primary border + faint background tint.
 class CategoryPicker extends StatelessWidget {
   const CategoryPicker({
@@ -52,7 +53,11 @@ class CategoryPicker extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(cat.emoji, style: const TextStyle(fontSize: 24)),
+                Icon(
+                  AppIconRegistry.resolve(cat.emoji),
+                  size: 24,
+                  color: isSelected ? color : AppColors.textSecondary,
+                ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   cat.name,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/models/habit_models.dart';
 
@@ -169,9 +170,10 @@ class _HabitBreakdownCardState extends State<_HabitBreakdownCard>
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Text(
-                  widget.breakdown.emoji,
-                  style: const TextStyle(fontSize: 18),
+                Icon(
+                  AppIconRegistry.resolve(widget.breakdown.emoji),
+                  size: 18,
+                  color: AppColors.textSecondary,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -199,7 +201,11 @@ class _HabitBreakdownCardState extends State<_HabitBreakdownCard>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('🔥', style: TextStyle(fontSize: 10)),
+                        const Icon(
+                          Icons.local_fire_department_rounded,
+                          size: 10,
+                          color: AppColors.streakActive,
+                        ),
                         const SizedBox(width: 2),
                         Text(
                           '${widget.breakdown.currentStreak}',
@@ -218,7 +224,7 @@ class _HabitBreakdownCardState extends State<_HabitBreakdownCard>
                   duration: AppDurations.fast,
                   child: Icon(
                     Icons.chevron_right_rounded,
-                    color: AppColors.textDisabled,
+                    color: AppColors.textSecondary,
                     size: AppSizes.iconMd,
                   ),
                 ),
@@ -325,7 +331,7 @@ class _StatChip extends StatelessWidget {
             Text(
               label,
               style: context.textTheme.labelSmall?.copyWith(
-                color: AppColors.textDisabled,
+                color: AppColors.textSecondary,
                 fontSize: 9,
               ),
             ),

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/database/app_database.dart';
 
 /// Habit tile in the Habits management screen.
 ///
-/// Shows: category dot, emoji, habit name, frequency label, chevron.
+/// Shows: category dot, icon, habit name, frequency label, chevron.
 /// Tapping navigates to the Edit screen.
 class HabitManagementTile extends StatelessWidget {
   const HabitManagementTile({
@@ -38,7 +39,7 @@ class HabitManagementTile extends StatelessWidget {
     final color = category != null
         ? Color(category!.colorValue)
         : AppColors.categoryCustom;
-    final emoji = habit.emoji ?? category?.emoji ?? '✨';
+    final iconKey = habit.emoji ?? category?.emoji;
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -72,8 +73,12 @@ class HabitManagementTile extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.md),
 
-                // Emoji
-                Text(emoji, style: const TextStyle(fontSize: 20)),
+                // Icon
+                Icon(
+                  AppIconRegistry.resolve(iconKey),
+                  size: 20,
+                  color: AppColors.textPrimary,
+                ),
                 const SizedBox(width: AppSpacing.md),
 
                 // Name + frequency

@@ -23,6 +23,27 @@ final class AppStrings {
   static const String greetingEvening = 'Good Evening';
 
   // ---------------------------------------------------------------------------
+  // Onboarding
+  // ---------------------------------------------------------------------------
+
+  static const String onboarding1Headline = 'Every tracker shows what you missed.';
+  static const String onboarding1Body =
+      'None of them show why. That blank space is the whole reason Tracely exists.';
+
+  static const String onboarding2Headline =
+      'When you miss a day, we ask one gentle question.';
+  static const String onboarding2Body =
+      'One tap. Always skippable. Never a guilt trip.';
+
+  static const String onboarding3Headline = 'Start with one habit.';
+  static const String onboarding3Body =
+      'Not ten. One you could do tomorrow even on a bad day.';
+
+  static const String onboardingNext = 'Next';
+  static const String onboardingSkip = 'Skip';
+  static const String onboardingCreateFirstHabit = 'Create my first habit';
+
+  // ---------------------------------------------------------------------------
   // Dashboard
   // ---------------------------------------------------------------------------
 
@@ -90,7 +111,7 @@ final class AppStrings {
   static const String categoryLabel = 'Category';
   static const String frequencyLabel = 'Frequency';
   static const String reminderLabel = 'Gentle reminder';
-  static const String emojiLabel = 'Pick an emoji';
+  static const String iconLabel = 'Pick an icon';
   static const String saveHabitButton = 'Start Building';
   static const String updateHabitButton = 'Save Changes';
   static const String archiveHabitButton = 'Archive this habit';
@@ -127,6 +148,39 @@ final class AppStrings {
   ];
 
   // ---------------------------------------------------------------------------
+  // Tasks
+  // ---------------------------------------------------------------------------
+
+  static const String tasksScreenTitle = 'Tasks';
+  static const String taskFilterToday = 'Today';
+  static const String taskFilterUpcoming = 'Upcoming';
+  static const String taskFilterOverdue = 'Overdue';
+  static const String taskFilterDone = 'Done';
+
+  static const String taskGroupOverdue = 'OVERDUE';
+  static const String taskGroupToday = 'TODAY';
+  static const String taskGroupTomorrow = 'TOMORROW';
+
+  static const String emptyTasksTitle = 'Nothing on your plate';
+  static const String emptyTasksBody =
+      'Add a task for the things that only need doing once.';
+  static const String emptyTasksCta = 'Add a Task';
+
+  // Add Task form
+  static const String addTaskTitle = 'New Task';
+  static const String taskNameLabel = 'What needs doing?';
+  static const String taskNameHint = 'Finish the assignment';
+  static const String taskDueLabel = 'Due';
+  static const String taskDueDateToday = 'Today';
+  static const String taskPriorityLabel = 'Priority';
+  static const String taskPriorityLow = 'Low';
+  static const String taskPriorityNormal = 'Normal';
+  static const String taskPriorityHigh = 'High';
+  static const String taskNotesLabel = 'Notes (optional)';
+  static const String taskNotesHint = 'Anything worth remembering...';
+  static const String saveTaskButton = 'Save';
+
+  // ---------------------------------------------------------------------------
   // Statistics (Phase 3 — strings reserved here for consistency)
   // ---------------------------------------------------------------------------
 
@@ -134,7 +188,7 @@ final class AppStrings {
   static const String streakCurrentLabel = 'Current Streak';
   static const String streakLongestLabel = 'Longest Streak';
   static const String streakPersonalBest = 'Personal best!';
-  static const String streakZeroMessage = 'Start a new streak today 🌱';
+  static const String streakZeroMessage = 'Start a new streak today';
   static const String weeklyInsightTitle = 'This Week';
 
   // ---------------------------------------------------------------------------
@@ -158,5 +212,6 @@ final class AppStrings {
 
   static const String navDashboard = 'Home';
   static const String navHabits = 'Habits';
+  static const String navTasks = 'Tasks';
   static const String navStatistics = 'Statistics';
 }

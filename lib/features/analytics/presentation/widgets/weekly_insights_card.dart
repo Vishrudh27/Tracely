@@ -45,7 +45,11 @@ class WeeklyInsightsCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text('💡', style: TextStyle(fontSize: 16)),
+                    const Icon(
+                      Icons.lightbulb_outline,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'This Week',

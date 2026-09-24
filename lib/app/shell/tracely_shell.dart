@@ -5,9 +5,9 @@ import '../../app/router/app_router.dart';
 import '../../app/theme/theme.dart';
 import '../../core/constants/app_strings.dart';
 
-/// Shell scaffold providing the bottom navigation bar for the three main tabs.
+/// Shell scaffold providing the bottom navigation bar for the four main tabs.
 ///
-/// Wraps Dashboard, Habits, and Statistics. The Reflection screen is OUTSIDE
+/// Wraps Dashboard, Habits, Tasks, and Statistics. The Reflection screen is OUTSIDE
 /// this shell — it has its own full-screen route with no navigation bar.
 ///
 /// Tab switching uses a FadeTransition (via AnimatedSwitcher) — never a slide,
@@ -27,6 +27,7 @@ class _TracelyShellState extends State<TracelyShell> {
   static const List<String> _routes = [
     AppRouter.dashboard,
     AppRouter.habits,
+    AppRouter.tasks,
     AppRouter.statistics,
   ];
 
@@ -39,7 +40,8 @@ class _TracelyShellState extends State<TracelyShell> {
   /// Derive the current index from the active route.
   int _indexFromRoute(String location) {
     if (location.startsWith(AppRouter.habits)) return 1;
-    if (location.startsWith(AppRouter.statistics)) return 2;
+    if (location.startsWith(AppRouter.tasks)) return 2;
+    if (location.startsWith(AppRouter.statistics)) return 3;
     return 0; // default: dashboard
   }
 
@@ -85,7 +87,7 @@ class _TracelyShellState extends State<TracelyShell> {
               NavigationDestination(
                 icon: Icon(
                   Icons.home_outlined,
-                  color: AppColors.textDisabled,
+                  color: AppColors.textSecondary,
                   size: AppSizes.iconLg,
                 ),
                 selectedIcon: Icon(
@@ -96,13 +98,16 @@ class _TracelyShellState extends State<TracelyShell> {
                 label: AppStrings.navDashboard,
               ),
               NavigationDestination(
+                // Repeat, not check_circle — that icon now belongs to Tasks.
+                // A recurring habit and a one-off task look identical in the
+                // nav otherwise.
                 icon: Icon(
-                  Icons.check_circle_outline_rounded,
-                  color: AppColors.textDisabled,
+                  Icons.repeat_rounded,
+                  color: AppColors.textSecondary,
                   size: AppSizes.iconLg,
                 ),
                 selectedIcon: Icon(
-                  Icons.check_circle_rounded,
+                  Icons.repeat_rounded,
                   color: AppColors.primary,
                   size: AppSizes.iconLg,
                 ),
@@ -110,8 +115,21 @@ class _TracelyShellState extends State<TracelyShell> {
               ),
               NavigationDestination(
                 icon: Icon(
+                  Icons.check_circle_outline_rounded,
+                  color: AppColors.textSecondary,
+                  size: AppSizes.iconLg,
+                ),
+                selectedIcon: Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.primary,
+                  size: AppSizes.iconLg,
+                ),
+                label: AppStrings.navTasks,
+              ),
+              NavigationDestination(
+                icon: Icon(
                   Icons.bar_chart_outlined,
-                  color: AppColors.textDisabled,
+                  color: AppColors.textSecondary,
                   size: AppSizes.iconLg,
                 ),
                 selectedIcon: Icon(

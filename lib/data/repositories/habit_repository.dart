@@ -59,9 +59,9 @@ class HabitRepository {
           HabitWithCompletion(
             habitId: habit.id,
             name: habit.name,
-            emoji: habit.emoji ?? cat?.emoji ?? '✨',
+            emoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
             categoryName: cat?.name ?? 'General',
-            categoryEmoji: cat?.emoji ?? '✨',
+            categoryEmoji: cat?.emoji ?? 'star_outline',
             categoryColorValue: cat?.colorValue ?? 0xFF78716C,
             frequencyType: habit.frequencyType,
             frequencyConfig: habit.frequencyConfig,
@@ -212,7 +212,7 @@ class HabitRepository {
             completionId: c.id,
             habitId: c.habitId,
             habitName: habit.name,
-            habitEmoji: habit.emoji ?? cat?.emoji ?? '✨',
+            habitEmoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
             completedAt: c.completedAt,
             completedDate: c.completedDate,
           ),
@@ -404,7 +404,7 @@ class HabitRepository {
         HabitBreakdown(
           habitId: habit.id,
           name: habit.name,
-          emoji: habit.emoji ?? cat?.emoji ?? '✨',
+          emoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
           categoryColorValue: cat?.colorValue ?? 0xFF78716C,
           completionRate: scheduledDays == 0
               ? 0.0
@@ -469,8 +469,6 @@ class HabitRepository {
     DateTime weekStart,
   ) async {
     final habits = await _habitDao.getActiveHabits();
-    final categories = await _categoryDao.getActiveCategories();
-    final catMap = {for (final c in categories) c.id: c};
 
     final weekCompletions = await _completionDao.getCompletionsInRange(
       weekStart,
@@ -533,8 +531,10 @@ class HabitRepository {
           habitCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
       try {
         final habit = habits.firstWhere((h) => h.id == bestId);
-        final cat = catMap[habit.categoryId];
-        bestHabit = '${habit.emoji ?? cat?.emoji ?? '✨'} ${habit.name}';
+        // Plain-text summary sentence — can't inline an icon here, so unlike
+        // every other habit.emoji use in this file, this one drops it rather
+        // than embedding the AppIconRegistry key as literal text.
+        bestHabit = habit.name;
       } catch (_) {}
     }
 
@@ -589,7 +589,7 @@ class HabitRepository {
     if (bestHabit != null && rate < 1.0) {
       parts.add('$bestHabit was your strongest this week.');
     } else if (rate >= 1.0) {
-      parts.add('A perfect week — beautifully done. 🌟');
+      parts.add('A perfect week — beautifully done.');
     }
 
     return parts.join(' ');
@@ -608,6 +608,12 @@ class HabitRepository {
       longestStreak: StreakCalculator.longestStreak(dates),
       lastCompletedDate: dates.isNotEmpty ? dates.last : null,
     );
+  }
+
+  /// Watch every completion for a single habit — powers the Habit Detail
+  /// screen, which needs to react live to toggles made elsewhere.
+  Stream<List<HabitCompletion>> watchCompletionsForHabit(int habitId) {
+    return _completionDao.watchCompletionsForHabit(habitId);
   }
 
   // ---------------------------------------------------------------------------
@@ -663,9 +669,9 @@ class HabitRepository {
         HabitWithCompletion(
           habitId: habit.id,
           name: habit.name,
-          emoji: habit.emoji ?? cat?.emoji ?? '✨',
+          emoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
           categoryName: cat?.name ?? 'General',
-          categoryEmoji: cat?.emoji ?? '✨',
+          categoryEmoji: cat?.emoji ?? 'star_outline',
           categoryColorValue: cat?.colorValue ?? 0xFF78716C,
           frequencyType: habit.frequencyType,
           frequencyConfig: habit.frequencyConfig,
@@ -729,6 +735,25 @@ final recentCompletionsProvider =
 final activeHabitsProvider = StreamProvider<List<Habit>>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return db.habitDao.watchActiveHabits();
+});
+
+final habitCompletionsProvider =
+    StreamProvider.family<List<HabitCompletion>, int>((ref, habitId) {
+  return ref.watch(habitRepositoryProvider).watchCompletionsForHabit(habitId);
+});
+
+/// Watches one habit by ID regardless of archived state — used by Habit
+/// Detail, which must stay reachable for archived habits too, and must
+/// reflect edits/archiving made from the Edit screen without a manual
+/// refresh.
+final habitByIdProvider = StreamProvider.family<Habit?, int>((ref, id) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.habitDao.watchHabitById(id);
+});
+
+final categoryByIdProvider = FutureProvider.family<Category?, int>((ref, id) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.categoryDao.getCategoryById(id);
 });
 
 final categoriesProvider = StreamProvider<List<Category>>((ref) {

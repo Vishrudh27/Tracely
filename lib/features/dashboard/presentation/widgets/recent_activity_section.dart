@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/models/habit_models.dart';
@@ -98,7 +99,11 @@ class _ActivityItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(completion.habitEmoji, style: const TextStyle(fontSize: 16)),
+        Icon(
+          AppIconRegistry.resolve(completion.habitEmoji),
+          size: 16,
+          color: AppColors.textPrimary,
+        ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Text(
@@ -114,7 +119,7 @@ class _ActivityItem extends StatelessWidget {
         Text(
           _timeLabel,
           style: context.textTheme.labelSmall?.copyWith(
-            color: AppColors.textDisabled,
+            color: AppColors.textSecondary,
           ),
         ),
       ],

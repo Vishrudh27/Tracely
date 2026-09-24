@@ -12,8 +12,10 @@ class Categories extends Table {
   /// Display name: "Health", "Mind", "Fitness", etc.
   TextColumn get name => text().withLength(min: 1, max: 50)();
 
-  /// Emoji representing this category: "💪", "🧠", "📚", etc.
-  TextColumn get emoji => text().withLength(min: 1, max: 10)();
+  /// An [AppIconRegistry] key, e.g. "fitness_center", "psychology",
+  /// "menu_book" — not a literal emoji character (see that registry's doc
+  /// comment for why). Named `emoji` for historical/migration reasons.
+  TextColumn get emoji => text().withLength(min: 1, max: 40)();
 
   /// Color stored as integer ARGB value (e.g. 0xFF65A30D).
   /// Maps to one of AppColors.category* constants.

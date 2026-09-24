@@ -12,6 +12,7 @@ import '../../../../core/widgets/animated_list_item.dart';
 import '../../../../core/widgets/section_header.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
 import '../../../../core/widgets/tracely_shimmer.dart';
+import '../../../../core/widgets/tracely_top_bar.dart';
 import '../../../../data/models/habit_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/services/reflection_gate_service.dart';
@@ -21,6 +22,7 @@ import '../widgets/daily_progress_card.dart';
 import '../widgets/dashboard_greeting_section.dart';
 import '../widgets/dashboard_motivation_footer.dart';
 import '../widgets/habit_tile.dart';
+import '../widgets/quick_stats_row.dart';
 import '../widgets/recent_activity_section.dart';
 import '../widgets/weekly_heatmap_preview.dart';
 
@@ -190,6 +192,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final progressAsync = ref.watch(todaysProgressProvider);
     final heatmapAsync = ref.watch(weeklyHeatmapProvider);
     final activityAsync = ref.watch(recentCompletionsProvider);
+    final streakAsync = ref.watch(overallStreakProvider);
 
     final progress = progressAsync.asData?.value ??
         const DailyProgress(completedCount: 0, totalCount: 0);
@@ -205,25 +208,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
 
           SafeArea(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                return habitsAsync.when(
-                  loading: () => _buildLoadingState(),
-                  error: (err, stack) => _buildErrorState(err),
-                  data: (habits) {
-                    if (habits.isEmpty) {
-                      return _buildEmptyState();
-                    }
-                    return _buildLoadedState(
-                      habits: habits,
-                      progress: progress,
-                      heatmapAsync: heatmapAsync,
-                      activityAsync: activityAsync,
-                    );
-                  },
-                );
-              },
+            child: Column(
+              children: [
+                TracelyTopBar(onAvatarTap: () => context.push(AppRouter.settings)),
+                Expanded(
+                  child: AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, _) {
+                      return habitsAsync.when(
+                        loading: () => _buildLoadingState(),
+                        error: (err, stack) => _buildErrorState(err),
+                        data: (habits) {
+                          if (habits.isEmpty) {
+                            return _buildEmptyState();
+                          }
+                          return _buildLoadedState(
+                            habits: habits,
+                            progress: progress,
+                            heatmapAsync: heatmapAsync,
+                            activityAsync: activityAsync,
+                            currentStreak:
+                                streakAsync.asData?.value.currentStreak ?? 0,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -310,9 +322,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     required DailyProgress progress,
     required AsyncValue<List<DayCompletion>> heatmapAsync,
     required AsyncValue<List<CompletionWithHabit>> activityAsync,
+    required int currentStreak,
   }) {
     final heatmap = heatmapAsync.asData?.value ?? [];
     final activity = activityAsync.asData?.value ?? [];
+    final weeklyConsistency = heatmap.isEmpty
+        ? 0.0
+        : heatmap.map((d) => d.completionPercentage).reduce((a, b) => a + b) /
+            heatmap.length;
 
     // §6.7 Momentum nudge: show when 60–99% done
     final showNudge =
@@ -422,6 +439,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 opacity: _heatmapOpacity.value,
                 translateY: _heatmapSlide.value,
                 onTap: () => context.go(AppRouter.statistics),
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              // 4b. Quick stat chips — streak + weekly consistency
+              QuickStatsRow(
+                currentStreak: currentStreak,
+                weeklyConsistency: weeklyConsistency,
+                opacity: _heatmapOpacity.value,
+                translateY: _heatmapSlide.value,
               ),
 
               if (activity.isNotEmpty) ...[

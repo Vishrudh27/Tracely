@@ -12,7 +12,7 @@ import '../../../../data/database/app_database.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/services/database_service.dart';
 import '../widgets/category_picker.dart';
-import '../widgets/emoji_picker_grid.dart';
+import '../widgets/icon_picker_grid.dart';
 import '../widgets/frequency_selector.dart';
 
 /// Edit Habit screen — pre-populated form for an existing habit.
@@ -33,7 +33,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
   Category? _selectedCategory;
   String _frequencyType = 'daily';
   List<int> _specificDays = [];
-  String? _selectedEmoji;
+  String? _selectedIcon;
   bool _isSaving = false;
   bool _isLoaded = false;
 
@@ -54,7 +54,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     if (_isLoaded) return;
     _isLoaded = true;
     _nameController.text = habit.name;
-    _selectedEmoji = habit.emoji;
+    _selectedIcon = habit.emoji;
     _frequencyType = habit.frequencyType;
     // Without this the chosen weekdays came back empty, so saving any edit
     // wrote a null config and quietly turned the habit back into a daily one.
@@ -89,7 +89,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
         HabitsCompanion(
           id: drift.Value(widget.habitId),
           name: drift.Value(_nameController.text.trim()),
-          emoji: drift.Value(_selectedEmoji),
+          emoji: drift.Value(_selectedIcon),
           categoryId: drift.Value(_selectedCategory!.id),
           frequencyType: drift.Value(_frequencyType),
           frequencyConfig: drift.Value(frequencyConfig),
@@ -212,13 +212,13 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
                               setState(() => _specificDays = v),
                         ),
                         const SizedBox(height: AppSpacing.xxxl),
-                        _buildSectionLabel('${AppStrings.emojiLabel} (optional)'),
+                        _buildSectionLabel('${AppStrings.iconLabel} (optional)'),
                         const SizedBox(height: AppSpacing.md),
-                        EmojiPickerGrid(
-                          selected: _selectedEmoji,
+                        IconPickerGrid(
+                          selected: _selectedIcon,
                           onSelected: (e) => setState(
-                            () => _selectedEmoji =
-                                e == _selectedEmoji ? null : e,
+                            () => _selectedIcon =
+                                e == _selectedIcon ? null : e,
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xxxl),

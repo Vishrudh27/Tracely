@@ -52,7 +52,11 @@ class MostCommonReasonsCard extends StatelessWidget {
                 // Header
                 Row(
                   children: [
-                    const Text('🪞', style: TextStyle(fontSize: 16)),
+                    const Icon(
+                      Icons.visibility_outlined,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'What Gets in the Way',
@@ -89,7 +93,7 @@ class MostCommonReasonsCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _ReasonRow — a single reason with emoji, label, bar, and percentage
+// _ReasonRow — a single reason with icon, label, bar, and percentage
 // ---------------------------------------------------------------------------
 
 class _ReasonRow extends StatelessWidget {
@@ -110,13 +114,10 @@ class _ReasonRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         children: [
-          // Emoji
+          // Icon
           SizedBox(
             width: AppSpacing.xxl,
-            child: Text(
-              display.emoji,
-              style: const TextStyle(fontSize: 16),
-            ),
+            child: Icon(display.icon, size: 18, color: display.color),
           ),
 
           // Label + bar
@@ -171,14 +172,14 @@ class _ReasonRow extends StatelessWidget {
 // Reason key → display info mapping
 // ---------------------------------------------------------------------------
 
-/// Display metadata for a reason key — emoji, human label, and bar color.
+/// Display metadata for a reason key — icon, human label, and bar color.
 class _ReasonDisplay {
   const _ReasonDisplay({
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.color,
   });
-  final String emoji;
+  final IconData icon;
   final String label;
   final Color color;
 }
@@ -196,7 +197,7 @@ _ReasonDisplay _reasonDisplayInfo(String reasonKey) {
     'burned_out' ||
     'energy' =>
       const _ReasonDisplay(
-        emoji: '🌱',
+        icon: Icons.bedtime_outlined,
         label: 'Energy',
         color: AppColors.categoryHealth,
       ),
@@ -208,7 +209,7 @@ _ReasonDisplay _reasonDisplayInfo(String reasonKey) {
     'family' ||
     'time' =>
       const _ReasonDisplay(
-        emoji: '⏰',
+        icon: Icons.schedule_outlined,
         label: 'Time',
         color: AppColors.categoryFitness,
       ),
@@ -221,7 +222,7 @@ _ReasonDisplay _reasonDisplayInfo(String reasonKey) {
     'couldnt_focus' ||
     'mind' =>
       const _ReasonDisplay(
-        emoji: '🧠',
+        icon: Icons.psychology_outlined,
         label: 'Focus',
         color: AppColors.categoryMind,
       ),
@@ -233,7 +234,7 @@ _ReasonDisplay _reasonDisplayInfo(String reasonKey) {
     'outside_home' ||
     'environment' =>
       const _ReasonDisplay(
-        emoji: '🌍',
+        icon: Icons.public_outlined,
         label: 'Environment',
         color: AppColors.categorySocial,
       ),
@@ -245,14 +246,14 @@ _ReasonDisplay _reasonDisplayInfo(String reasonKey) {
     'emergency' ||
     'personal' =>
       const _ReasonDisplay(
-        emoji: '❤️',
+        icon: Icons.favorite_outline,
         label: 'Personal',
         color: AppColors.categoryCreativity,
       ),
 
     // Custom / other
     _ => const _ReasonDisplay(
-        emoji: '✍️',
+        icon: Icons.edit_outlined,
         label: 'Other',
         color: AppColors.categoryCustom,
       ),
