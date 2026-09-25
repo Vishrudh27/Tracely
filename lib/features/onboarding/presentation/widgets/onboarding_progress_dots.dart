@@ -4,8 +4,9 @@ import '../../../../app/theme/theme.dart';
 
 /// The 3-dot step indicator shared by every onboarding page.
 ///
-/// The active dot widens into a pill rather than just changing color, so
-/// progress reads clearly even for color-blind users.
+/// Stitch draws three equal 8px circles, the active one filled in coffee —
+/// so colour is the only visual cue. The Semantics wrapper carries "Step N
+/// of M" for anyone that cue doesn't reach.
 class OnboardingProgressDots extends StatelessWidget {
   const OnboardingProgressDots({
     super.key,
@@ -28,12 +29,12 @@ class OnboardingProgressDots extends StatelessWidget {
           return AnimatedContainer(
             duration: AppDurations.medium,
             curve: AppCurves.standard,
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xxs),
-            width: isActive ? 20 : 8,
+            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            width: 8,
             height: 8,
             decoration: BoxDecoration(
               color: isActive ? AppColors.primary : AppColors.border,
-              borderRadius: AppRadius.small,
+              shape: BoxShape.circle,
             ),
           );
         }),

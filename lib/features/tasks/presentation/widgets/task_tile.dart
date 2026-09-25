@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/extensions/date_extensions.dart';
 import '../../../../data/models/task_models.dart';
 
 /// A single task row — deliberately flatter than [HabitTile]: no card fill,
@@ -12,6 +14,7 @@ class TaskTile extends StatelessWidget {
     required this.task,
     required this.onToggle,
     this.showOverdueLabel = false,
+    this.showDate = false,
   });
 
   final TaskWithCategory task;
@@ -21,6 +24,12 @@ class TaskTile extends StatelessWidget {
   /// textSecondary — used for rows under the OVERDUE group.
   final bool showOverdueLabel;
 
+  /// When true, prefixes the meta line with a relative day label
+  /// ("Yesterday", "Tomorrow", "Oct 14") instead of bare time — used
+  /// wherever the row isn't already grouped under a same-day section
+  /// header (the OVERDUE group, and the flat Upcoming/Overdue tabs).
+  final bool showDate;
+
   Color get _priorityColor => switch (task.priority) {
         TaskPriority.high => AppColors.priorityHigh,
         TaskPriority.normal => AppColors.priorityMedium,
@@ -28,11 +37,22 @@ class TaskTile extends StatelessWidget {
       };
 
   String? get _metaLine {
+    String? whenPart = task.dueTime != null ? _formatTime(task.dueTime!) : null;
+    if (showDate && task.dueDate != null) {
+      final dateLabel = _dateLabel(task.dueDate!);
+      whenPart = whenPart != null ? '$dateLabel, $whenPart' : dateLabel;
+    }
     final parts = <String>[
-      if (task.dueTime != null) _formatTime(task.dueTime!),
+      ?whenPart,
       if (task.categoryName != null) task.categoryName!,
     ];
-    return parts.isEmpty ? null : parts.join(' · ');
+    return parts.isEmpty ? null : parts.join(' • ');
+  }
+
+  static String _dateLabel(DateTime date) {
+    if (date.isYesterday) return 'Yesterday';
+    if (date.isSameDay(DateTime.now().addDays(1))) return 'Tomorrow';
+    return DateFormat('MMM d').format(date);
   }
 
   static String _formatTime(String hhmm) {
@@ -88,27 +108,20 @@ class TaskTile extends StatelessWidget {
             ],
           ),
         ),
-        if (!task.isDone) ...[
-          const SizedBox(width: AppSpacing.sm),
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: _priorityColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ],
+        const SizedBox(width: AppSpacing.sm),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: _priorityColor, shape: BoxShape.circle),
+        ),
       ],
     );
 
     return Opacity(
       opacity: task.isDone ? 0.6 : 1.0,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xl,
-          vertical: AppSpacing.lg,
-        ),
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         decoration: const BoxDecoration(
           border: Border(
             bottom: BorderSide(color: AppColors.border, width: 1),

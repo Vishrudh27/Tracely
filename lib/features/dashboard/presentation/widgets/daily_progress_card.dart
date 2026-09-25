@@ -25,11 +25,16 @@ class DailyProgressCard extends StatelessWidget {
   final double cardOpacity;
   final double cardTranslateY;
 
-  String get _progressCopy {
-    if (progress.isEmpty) return AppStrings.progressFreshStart;
-    if (progress.allDone) return AppStrings.progressAllDone;
-    if (progress.noneDone) return AppStrings.progressFreshStart;
-    return AppStrings.progressKeepGoing;
+  String get _headline {
+    if (progress.allDone) return AppStrings.progressAllDoneHeadline;
+    if (progress.remaining == 1) return AppStrings.progressAlmostHeadline;
+    return AppStrings.progressNormalHeadline;
+  }
+
+  String get _subtitle {
+    if (progress.allDone) return AppStrings.progressAllDoneSubtitle;
+    if (progress.remaining == 1) return AppStrings.progressAlmostSubtitle;
+    return '${progress.remaining} habits left';
   }
 
   @override
@@ -53,11 +58,10 @@ class DailyProgressCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: Container(
             width: double.infinity,
-            padding: AppSpacing.card,
+            padding: const EdgeInsets.all(AppSpacing.xl),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: AppRadius.card,
-              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               boxShadow: AppShadows.sm,
             ),
             child: Row(
@@ -73,9 +77,9 @@ class DailyProgressCard extends StatelessWidget {
                         painter: _ProgressRingPainter(
                           percentage: ringAnimation.value,
                           strokeWidth: AppSizes.progressRingStroke,
-                          trackColor: AppColors.border,
+                          trackColor: AppColors.surfaceVariant,
                           progressColor: progress.allDone
-                              ? AppColors.primaryLight
+                              ? AppColors.success
                               : AppColors.primary,
                         ),
                         child: Center(
@@ -83,18 +87,26 @@ class DailyProgressCard extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                '${progress.completedCount}',
+                                '${progress.completedCount}/${progress.totalCount}',
                                 style: context.textTheme.displaySmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary,
+                                  height: 1.0,
                                 ),
                               ),
-                              Text(
-                                'of ${progress.totalCount}',
-                                style: context.textTheme.labelSmall?.copyWith(
-                                  color: AppColors.textSecondary,
+                              const SizedBox(height: 2),
+                              if (progress.allDone)
+                                Text(
+                                  'DONE',
+                                  style: context.textTheme.labelSmall?.copyWith(
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.9,
+                                  ),
+                                )
+                              else
+                                Text(
+                                  'today',
+                                  style: context.textTheme.bodySmall,
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -109,41 +121,17 @@ class DailyProgressCard extends StatelessWidget {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      Text(_headline, style: context.textTheme.titleMedium),
+                      const SizedBox(height: 2),
                       Text(
-                        'Today',
-                        style: context.textTheme.labelMedium?.copyWith(
+                        _subtitle,
+                        style: context.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      Text(
-                        _progressCopy,
-                        style: context.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textPrimary,
-                          height: 1.4,
-                        ),
-                      ),
-                      if (!progress.isEmpty && !progress.allDone) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          '${progress.remaining} left',
-                          style: context.textTheme.labelMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                      if (progress.allDone) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'All done!',
-                          style: context.textTheme.labelMedium?.copyWith(
-                            color: AppColors.primaryLight,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -173,7 +161,7 @@ class _ProgressRingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - (strokeWidth / 2);
+    final radius = (size.width / 2) - strokeWidth;
 
     final trackPaint = Paint()
       ..color = trackColor

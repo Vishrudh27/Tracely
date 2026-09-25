@@ -29,8 +29,8 @@ class ReflectionBackground extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AppColors.primary.withValues(
-                          alpha: 0.12 * glowAnimation.value,
+                        AppColors.primaryLight.withValues(
+                          alpha: 0.20 * glowAnimation.value,
                         ),
                         Colors.transparent,
                       ],

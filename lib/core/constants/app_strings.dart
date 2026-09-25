@@ -12,7 +12,8 @@ final class AppStrings {
   // ---------------------------------------------------------------------------
 
   static const String appName = 'Tracely';
-  static const String appTagline = 'Build habits. Build yourself.';
+  /// Stitch's splash wordmark line — the brand promise, not a slogan.
+  static const String appTagline = 'Know why, not just what';
 
   // ---------------------------------------------------------------------------
   // Greetings (time-based, pulled in by GreetingUtils)
@@ -49,16 +50,20 @@ final class AppStrings {
 
   static const String dashboardTitle = 'Today';
   static const String sectionTodaysHabits = "Today's Habits";
+  static const String sectionTodaysTasks = "Today's Tasks";
   static const String sectionWeeklyProgress = 'This Week';
   static const String sectionRecentActivity = 'Recent Activity';
 
-  // Progress card copy
-  static const String progressFreshStart = 'A fresh start — take it one at a time.';
-  static const String progressAllDone = 'All done — beautifully consistent.';
-  static const String progressKeepGoing = 'Keep going — you\'re doing great.';
+  // Progress card copy — headline + subtitle pair, keyed off habits remaining
+  static const String progressAllDoneHeadline = 'All completed';
+  static const String progressAllDoneSubtitle = 'Quiet rest ahead';
+  static const String progressAlmostHeadline = 'Almost there';
+  static const String progressAlmostSubtitle = '1 habit left';
+  static const String progressNormalHeadline = 'Nicely paced';
 
   // Motivation footer — rotated daily
   static const List<String> motivationFooter = [
+    'Progress is the sum of small wins.',
     'Small steps, every day.',
     'Consistency over perfection.',
     'Show up — the rest follows.',
@@ -77,6 +82,18 @@ final class AppStrings {
   static const String emptyDashboardBody =
       'Add your first habit and start building.';
   static const String emptyDashboardCta = 'Add First Habit';
+  static const String emptyDashboardSubtitle = 'Fresh start ahead.';
+  // Quote reuses motivationFooter[0] — see DashboardEmptyView.
+  static const String emptyDashboardTipTitle = 'A quiet ritual';
+  static const String emptyDashboardTipBody =
+      'Start small. Even two minutes of reading or a morning glass of '
+      'water counts.';
+
+  // Rest day — habits exist but none are scheduled today (not in Stitch).
+  static const String restDayGreetingSubtitle = 'Enjoy the rest.';
+  static const String restDayTitle = 'Nothing due today';
+  static const String restDayBody =
+      "Your habits aren't scheduled today. Take the day off.";
 
   static const String emptyHabitsTitle = 'A blank page is full of possibility';
   static const String emptyHabitsBody =
@@ -106,14 +123,14 @@ final class AppStrings {
   static const String filterArchived = 'Archived';
 
   // Add / Edit habit form
-  static const String habitNameHint = 'What do you want to build?';
-  static const String habitNameLabel = 'Habit name';
+  static const String habitNameHint = 'Morning walk';
+  static const String habitNameLabel = 'Name';
   static const String categoryLabel = 'Category';
   static const String frequencyLabel = 'Frequency';
   static const String reminderLabel = 'Gentle reminder';
-  static const String iconLabel = 'Pick an icon';
-  static const String saveHabitButton = 'Start Building';
-  static const String updateHabitButton = 'Save Changes';
+  static const String iconLabel = 'Icon';
+  static const String saveHabitButton = 'Save';
+  static const String updateHabitButton = 'Save';
   static const String archiveHabitButton = 'Archive this habit';
 
   static const String archiveConfirmTitle = 'Archive this habit?';

@@ -12,24 +12,35 @@ final class StreakCalculator {
   /// [completionDates] must contain unique dates (one per calendar day),
   /// normalized to midnight. The list can be in any order.
   ///
-  /// Returns 0 if there are no completions or if the most recent completion
-  /// was more than 1 day ago (streak is broken).
-  static int currentStreak(List<DateTime> completionDates) {
+  /// [isScheduled] marks which days the habit is meant to be done on. A day
+  /// it returns false for is skipped — it neither counts toward the streak
+  /// nor breaks it. Defaults to every day, the old all-days behavior; pass
+  /// [isScheduledOn] (from `habit_schedule.dart`) for a habit with specific
+  /// days, so a Mon–Fri habit's streak survives the weekend.
+  ///
+  /// Returns 0 if there are no completions, or if a scheduled day between
+  /// the last completion and today was missed.
+  static int currentStreak(
+    List<DateTime> completionDates, {
+    bool Function(DateTime day)? isScheduled,
+  }) {
     if (completionDates.isEmpty) return 0;
+    final scheduled = isScheduled ?? _alwaysScheduled;
 
     final sorted = _sortedUniqueDays(completionDates);
     final today = DateTime.now().startOfDay;
-    final yesterday = today.addDays(-1);
 
-    // Streak is alive if the last completion was today or yesterday.
-    if (!sorted.last.isSameDay(today) && !sorted.last.isSameDay(yesterday)) {
-      return 0;
+    // Broken if a scheduled day was missed between the last completion and
+    // today. Today itself is excluded — it may just not be done yet.
+    var cursor = sorted.last.addDays(1);
+    while (cursor.isBefore(today)) {
+      if (scheduled(cursor)) return 0;
+      cursor = cursor.addDays(1);
     }
 
     int streak = 1;
     for (int i = sorted.length - 1; i > 0; i--) {
-      final diff = sorted[i].calendarDaysSince(sorted[i - 1]);
-      if (diff == 1) {
+      if (_gapIsAllUnscheduled(sorted[i - 1], sorted[i], scheduled)) {
         streak++;
       } else {
         break;
@@ -39,16 +50,21 @@ final class StreakCalculator {
   }
 
   /// Calculates the longest streak ever recorded.
-  static int longestStreak(List<DateTime> completionDates) {
+  ///
+  /// See [currentStreak] for [isScheduled].
+  static int longestStreak(
+    List<DateTime> completionDates, {
+    bool Function(DateTime day)? isScheduled,
+  }) {
     if (completionDates.isEmpty) return 0;
+    final scheduled = isScheduled ?? _alwaysScheduled;
 
     final sorted = _sortedUniqueDays(completionDates);
     int longest = 1;
     int current = 1;
 
     for (int i = 1; i < sorted.length; i++) {
-      final diff = sorted[i].calendarDaysSince(sorted[i - 1]);
-      if (diff == 1) {
+      if (_gapIsAllUnscheduled(sorted[i - 1], sorted[i], scheduled)) {
         current++;
         if (current > longest) longest = current;
       } else {
@@ -56,6 +72,25 @@ final class StreakCalculator {
       }
     }
     return longest;
+  }
+
+  static bool _alwaysScheduled(DateTime day) => true;
+
+  /// True if every day strictly between [earlier] and [later] is a day the
+  /// habit wasn't scheduled for — i.e. the gap is just rest days, not a
+  /// missed one. Consecutive days (no days between) are always true, which
+  /// is what makes a plain daily-habit gap of 1 still count as continuing.
+  static bool _gapIsAllUnscheduled(
+    DateTime earlier,
+    DateTime later,
+    bool Function(DateTime day) scheduled,
+  ) {
+    var day = earlier.addDays(1);
+    while (day.isBefore(later)) {
+      if (scheduled(day)) return false;
+      day = day.addDays(1);
+    }
+    return true;
   }
 
   /// Returns sorted unique calendar days from a list of completion timestamps.

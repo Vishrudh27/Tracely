@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/theme.dart';
-import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/database/app_database.dart';
 
-/// Grid of category cards for the Add/Edit Habit form.
+/// Wrapped row of category chips for the Add/Edit Habit form.
 ///
-/// Each card shows the category icon + name.
-/// Selected state: primary border + faint background tint.
+/// Each chip: category dot + name. Selected state rings and colors the
+/// chip in the category's own color, matching `add_habit/code.html`.
 class CategoryPicker extends StatelessWidget {
   const CategoryPicker({
     super.key,
@@ -23,18 +22,10 @@ class CategoryPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: AppSpacing.sm,
-        crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: categories.length,
-      itemBuilder: (context, i) {
-        final cat = categories[i];
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: categories.map((cat) {
         final isSelected = selected?.id == cat.id;
         final color = Color(cat.colorValue);
 
@@ -42,39 +33,34 @@ class CategoryPicker extends StatelessWidget {
           onTap: () => onSelected(cat),
           child: AnimatedContainer(
             duration: AppDurations.fast,
+            height: AppSizes.chipHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isSelected ? color.withValues(alpha: 0.10) : AppColors.surface,
-              borderRadius: AppRadius.card,
-              border: Border.all(
-                color: isSelected ? color : AppColors.border,
-                width: isSelected ? 2 : 1,
-              ),
+              color: isSelected ? AppColors.surface : AppColors.surfaceVariant,
+              borderRadius: AppRadius.small,
+              border: isSelected ? Border.all(color: color, width: 2) : null,
+              boxShadow: isSelected ? AppShadows.sm : null,
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  AppIconRegistry.resolve(cat.emoji),
-                  size: 24,
-                  color: isSelected ? color : AppColors.textSecondary,
+                Container(
+                  width: AppSizes.categoryDot,
+                  height: AppSizes.categoryDot,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: color),
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(width: AppSpacing.sm),
                 Text(
                   cat.name,
-                  style: context.textTheme.labelSmall?.copyWith(
+                  style: context.textTheme.titleSmall?.copyWith(
                     color: isSelected ? color : AppColors.textSecondary,
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
         );
-      },
+      }).toList(),
     );
   }
 }

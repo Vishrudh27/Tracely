@@ -10,6 +10,7 @@ import '../../../../data/database/app_database.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/services/database_service.dart';
 import '../widgets/category_picker.dart';
+import '../widgets/habit_form_tip_card.dart';
 import '../widgets/icon_picker_grid.dart';
 import '../widgets/frequency_selector.dart';
 
@@ -78,39 +79,40 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close_rounded, color: AppColors.textPrimary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'New Habit',
-          style: context.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-      ),
       body: SafeArea(
         child: Column(
           children: [
+            _buildHeader(context),
             Expanded(
               child: SingleChildScrollView(
-                padding: AppSpacing.screen,
+                padding: const EdgeInsets.only(
+                  left: AppSpacing.xl,
+                  right: AppSpacing.xl,
+                  top: AppSpacing.sm,
+                  bottom: AppSpacing.lg,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: AppSpacing.md),
-
-                    // Habit name field
+                    // Name field
+                    _buildSectionLabel(AppStrings.habitNameLabel),
+                    const SizedBox(height: AppSpacing.sm),
                     _buildNameField(),
-                    const SizedBox(height: AppSpacing.xxxl),
+                    const SizedBox(height: AppSpacing.xxl),
+
+                    // Icon picker
+                    _buildSectionLabel(AppStrings.iconLabel),
+                    const SizedBox(height: AppSpacing.sm),
+                    IconPickerGrid(
+                      selected: _selectedIcon,
+                      onSelected: (e) =>
+                          setState(() => _selectedIcon = e == _selectedIcon ? null : e),
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
 
                     // Category picker
                     _buildSectionLabel(AppStrings.categoryLabel),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.sm),
                     categoriesAsync.when(
                       data: (cats) => CategoryPicker(
                         categories: cats,
@@ -121,12 +123,11 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
                       loading: () => const SizedBox(height: 120),
                       error: (err, stack) => const SizedBox.shrink(),
                     ),
-
-                    const SizedBox(height: AppSpacing.xxxl),
+                    const SizedBox(height: AppSpacing.xxl),
 
                     // Frequency selector
                     _buildSectionLabel(AppStrings.frequencyLabel),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.sm),
                     FrequencySelector(
                       frequencyType: _frequencyType,
                       specificDays: _specificDays,
@@ -135,108 +136,98 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
                       onSpecificDaysChanged: (v) =>
                           setState(() => _specificDays = v),
                     ),
-
                     const SizedBox(height: AppSpacing.xxxl),
 
-                    // Emoji picker
-                    _buildSectionLabel('${AppStrings.iconLabel} (optional)'),
-                    const SizedBox(height: AppSpacing.md),
-                    IconPickerGrid(
-                      selected: _selectedIcon,
-                      onSelected: (e) =>
-                          setState(() => _selectedIcon = e == _selectedIcon ? null : e),
-                    ),
-
+                    const HabitFormTipCard(),
                     const SizedBox(height: AppSpacing.huge),
                   ],
                 ),
               ),
             ),
-
-            // Save button
-            _buildSaveButton(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNameField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: _nameController,
-          onChanged: (_) => setState(() {}),
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          style: context.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      height: AppSizes.appBarHeight,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+              onPressed: () => context.pop(),
+            ),
           ),
-          decoration: InputDecoration(
-            hintText: AppStrings.habitNameHint,
-            hintStyle: context.textTheme.headlineSmall?.copyWith(
-              color: AppColors.textDisabled,
-              fontWeight: FontWeight.w400,
-            ),
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.border, width: 1),
-            ),
+          Text('New Habit', style: context.textTheme.headlineMedium),
+          TextButton(
+            onPressed: _canSave ? _save : null,
+            child: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : Text(
+                    AppStrings.saveHabitButton,
+                    style: context.textTheme.titleMedium?.copyWith(
+                      color: AppColors.primary.withValues(
+                        alpha: _canSave ? 1 : 0.38,
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNameField() {
+    return SizedBox(
+      height: AppSizes.inputHeight,
+      child: TextField(
+        controller: _nameController,
+        onChanged: (_) => setState(() {}),
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        textAlignVertical: TextAlignVertical.center,
+        style: context.textTheme.bodyLarge,
+        decoration: InputDecoration(
+          hintText: AppStrings.habitNameHint,
+          hintStyle: context.textTheme.bodyLarge?.copyWith(
+            color: AppColors.textDisabled,
+          ),
+          filled: true,
+          fillColor: AppColors.surfaceVariant,
+          contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: const BorderSide(color: AppColors.borderOutline),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: const BorderSide(color: AppColors.borderOutline),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: const BorderSide(color: AppColors.primary, width: 2),
           ),
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildSectionLabel(String label) {
-    return Text(
-      label,
-      style: context.textTheme.labelMedium?.copyWith(
-        color: AppColors.textSecondary,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-
-  Widget _buildSaveButton() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl, AppSpacing.md, AppSpacing.xl, AppSpacing.xl,
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: AppSizes.buttonHeight,
-        child: ElevatedButton(
-          onPressed: _canSave ? _save : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            disabledBackgroundColor: AppColors.disabled,
-            foregroundColor: AppColors.textOnPrimary,
-            shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
-            elevation: 0,
-          ),
-          child: _isSaving
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(
-                  AppStrings.saveHabitButton,
-                  style: context.textTheme.labelLarge?.copyWith(
-                    color: AppColors.textOnPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-        ),
-      ),
-    );
+    return Text(label, style: context.textTheme.titleSmall);
   }
 }

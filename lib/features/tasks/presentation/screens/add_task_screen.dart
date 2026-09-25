@@ -10,7 +10,6 @@ import '../../../../data/database/app_database.dart';
 import '../../../../data/models/task_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/repositories/task_repository.dart';
-import '../../../habits/presentation/widgets/category_picker.dart';
 
 /// Full-screen Add Task form — deliberately lighter and shorter than Add
 /// Habit: fewer fields, more air. See docs/stitch_prompt_kit.md §3.13.
@@ -117,14 +116,14 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        toolbarHeight: AppSizes.appBarHeight,
         leading: IconButton(
           icon: Icon(Icons.close_rounded, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: Text(
           AppStrings.addTaskTitle,
-          style: context.textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: context.textTheme.headlineMedium,
         ),
         centerTitle: true,
         actions: [
@@ -144,39 +143,52 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: AppSpacing.screen,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.xxl),
               _Label(AppStrings.taskNameLabel),
               const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _titleController,
-                style: context.textTheme.bodyLarge,
-                decoration: InputDecoration(
-                  hintText: AppStrings.taskNameHint,
-                  hintStyle: context.textTheme.bodyLarge
-                      ?.copyWith(color: AppColors.textDisabled),
-                  filled: true,
-                  fillColor: AppColors.surfaceVariant,
-                  contentPadding: AppSpacing.input,
-                  border: OutlineInputBorder(
-                    borderRadius: AppRadius.input,
-                    borderSide: BorderSide(color: AppColors.borderOutline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadius.input,
-                    borderSide: BorderSide(color: AppColors.borderOutline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: AppRadius.input,
-                    borderSide:
-                        BorderSide(color: AppColors.primary, width: 2),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.input,
+                  boxShadow: AppShadows.sm,
+                ),
+                child: SizedBox(
+                  height: AppSizes.inputHeight,
+                  child: TextField(
+                    controller: _titleController,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: context.textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      hintText: AppStrings.taskNameHint,
+                      hintStyle: context.textTheme.bodyLarge
+                          ?.copyWith(color: AppColors.textDisabled),
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant,
+                      contentPadding: AppSpacing.input,
+                      suffixIcon: const Icon(
+                        Icons.edit_note_rounded,
+                        color: AppColors.textDisabled,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: AppRadius.input,
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: AppRadius.input,
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: AppRadius.input,
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.xxxl),
+              const SizedBox(height: AppSpacing.xxl),
 
               _Label(AppStrings.taskDueLabel),
               const SizedBox(height: AppSpacing.sm),
@@ -199,81 +211,124 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xxxl),
+              const SizedBox(height: AppSpacing.xxl),
 
               _Label(AppStrings.taskPriorityLabel),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
-                  _PriorityChip(
-                    label: AppStrings.taskPriorityLow,
-                    dotColor: AppColors.priorityLow,
-                    selected: _priority == TaskPriority.low,
-                    onTap: () => setState(() => _priority = TaskPriority.low),
+                  Expanded(
+                    child: _PriorityChip(
+                      label: AppStrings.taskPriorityLow,
+                      dotColor: AppColors.priorityLow,
+                      selected: _priority == TaskPriority.low,
+                      onTap: () => setState(() => _priority = TaskPriority.low),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  _PriorityChip(
-                    label: AppStrings.taskPriorityNormal,
-                    dotColor: AppColors.priorityMedium,
-                    selected: _priority == TaskPriority.normal,
-                    onTap: () =>
-                        setState(() => _priority = TaskPriority.normal),
+                  Expanded(
+                    child: _PriorityChip(
+                      label: AppStrings.taskPriorityNormal,
+                      dotColor: AppColors.priorityMedium,
+                      selected: _priority == TaskPriority.normal,
+                      onTap: () =>
+                          setState(() => _priority = TaskPriority.normal),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  _PriorityChip(
-                    label: AppStrings.taskPriorityHigh,
-                    dotColor: AppColors.priorityHigh,
-                    selected: _priority == TaskPriority.high,
-                    onTap: () =>
-                        setState(() => _priority = TaskPriority.high),
+                  Expanded(
+                    child: _PriorityChip(
+                      label: AppStrings.taskPriorityHigh,
+                      dotColor: AppColors.priorityHigh,
+                      selected: _priority == TaskPriority.high,
+                      onTap: () =>
+                          setState(() => _priority = TaskPriority.high),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xxxl),
+              const SizedBox(height: AppSpacing.xxl),
 
               _Label(AppStrings.categoryLabel),
               const SizedBox(height: AppSpacing.sm),
               categoriesAsync.when(
                 loading: () => const SizedBox.shrink(),
                 error: (_, _) => const SizedBox.shrink(),
-                data: (cats) => CategoryPicker(
-                  categories: cats,
-                  selected: _selectedCategory,
-                  onSelected: (c) => setState(() {
-                    _selectedCategory = _selectedCategory?.id == c.id ? null : c;
-                  }),
+                data: (cats) => Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: cats.map((c) {
+                    final selected = _selectedCategory?.id == c.id;
+                    return _PriorityChip(
+                      label: c.name,
+                      dotColor: Color(c.colorValue),
+                      selected: selected,
+                      onTap: () => setState(() {
+                        _selectedCategory = selected ? null : c;
+                      }),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+
+              _Label(AppStrings.taskNotesLabel),
+              const SizedBox(height: AppSpacing.sm),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.input,
+                  boxShadow: AppShadows.sm,
+                ),
+                child: TextField(
+                  controller: _notesController,
+                  maxLines: 4,
+                  minLines: 4,
+                  style: context.textTheme.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: AppStrings.taskNotesHint,
+                    hintStyle: context.textTheme.bodyMedium
+                        ?.copyWith(color: AppColors.textDisabled),
+                    filled: true,
+                    fillColor: AppColors.surfaceVariant,
+                    contentPadding: AppSpacing.input,
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(
+                      borderRadius: AppRadius.input,
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: AppRadius.input,
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: AppRadius.input,
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.xxxl),
 
-              _Label(AppStrings.taskNotesLabel),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _notesController,
-                maxLines: 4,
-                minLines: 4,
-                style: context.textTheme.bodyMedium,
-                decoration: InputDecoration(
-                  hintText: AppStrings.taskNotesHint,
-                  hintStyle: context.textTheme.bodyMedium
-                      ?.copyWith(color: AppColors.textDisabled),
-                  filled: true,
-                  fillColor: AppColors.surfaceVariant,
-                  contentPadding: AppSpacing.input,
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(
-                    borderRadius: AppRadius.input,
-                    borderSide: BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadius.input,
-                    borderSide: BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: AppRadius.input,
-                    borderSide:
-                        BorderSide(color: AppColors.primary, width: 2),
-                  ),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  boxShadow: AppShadows.sm,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.spa_outlined, size: 18, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Text(
+                        'Small actions, quiet progress. Add only what '
+                        'genuinely serves today.',
+                        style: context.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: AppSpacing.huge),
@@ -323,7 +378,7 @@ class _SelectorField extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
           borderRadius: AppRadius.input,
-          border: Border.all(color: AppColors.border),
+          boxShadow: AppShadows.sm,
         ),
         child: Row(
           children: [
@@ -366,15 +421,13 @@ class _PriorityChip extends StatelessWidget {
         height: AppSizes.chipHeight,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: selected ? AppColors.surface : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(
-            color: selected ? AppColors.primary : AppColors.border,
-            width: selected ? 2 : 1,
-          ),
+          boxShadow: selected ? AppShadows.md : AppShadows.sm,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               width: 8,
@@ -384,9 +437,8 @@ class _PriorityChip extends StatelessWidget {
             const SizedBox(width: AppSpacing.xs),
             Text(
               label,
-              style: context.textTheme.labelLarge?.copyWith(
+              style: context.textTheme.titleSmall?.copyWith(
                 color: selected ? AppColors.primary : AppColors.textSecondary,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ],

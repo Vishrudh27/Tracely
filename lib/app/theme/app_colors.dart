@@ -29,6 +29,11 @@ final class AppColors {
 
   static const Color surfaceVariant = Color(0xFFF2EDE6); // surface-recessed
 
+  /// A step lighter than [surfaceVariant] — used for decorative/tip cards
+  /// where Stitch specifies `surface-container-low` instead of the more
+  /// common `surface-recessed`.
+  static const Color surfaceContainerLow = Color(0xFFF5F3F0);
+
   // ---------------------------------------------------------------------------
   // Brand Colors
   // ---------------------------------------------------------------------------
@@ -106,12 +111,14 @@ final class AppColors {
   // Heatmap
   // ---------------------------------------------------------------------------
 
+  // One brown ramp, matching `statistics/code.html`'s activity heatmap —
+  // no terracotta here, that accent is reserved for the weekly insight card.
   static const List<Color> heatmap = [
-    surfaceVariant,
-    primaryLight,
-    accentTerracotta,
+    Color(0xFFF1EDE7),
+    Color(0xFFE3D3C0),
+    Color(0xFFCDB094),
+    Color(0xFFA97F58),
     primary,
-    primaryDark,
   ];
 
   // ---------------------------------------------------------------------------
@@ -129,19 +136,23 @@ final class AppColors {
   // ---------------------------------------------------------------------------
   // Category Colors (muted, warm variants — never harsh)
   //
-  // NOT yet re-harmonized for Clay & Oat — still the Stone & Sand-era hues
-  // (saturated blue/violet/rose/teal). They read as a clash next to the new
-  // brown chrome. Left as-is deliberately: unlike heatmap/chart/streak above,
-  // these need to stay visually distinct from each other (they're how a habit
-  // list tells categories apart at a glance), so re-choosing 8 mutually
-  // distinguishable warm tones is its own design pass, not a token swap —
-  // do it when the Habits/Statistics screens are up for their own build stage.
+  // Health/Mind/Fitness/Learning migrated 2026-09-25 to the exact hues
+  // Stitch specifies in `add_habit/code.html`'s category chip selector — the
+  // only place in the whole design system that defines category colors, and
+  // it only covers these four. The real per-category color a habit displays
+  // lives in the `categories.colorValue` DB column (see AppDatabase's
+  // migration v3→v4 and `_seedDefaultCategories`); these constants exist for
+  // the ReasonDisplay mapping and as the categoryCustom fallback.
+  //
+  // Creativity/Social/Self-Care have NO Stitch source — still the old Stone
+  // & Sand-era hues (saturated rose/teal/amber), deliberately left alone
+  // rather than inventing colors and calling them "Stitch's".
   // ---------------------------------------------------------------------------
 
-  static const Color categoryHealth = Color(0xFF65A30D); // Olive green
-  static const Color categoryMind = Color(0xFF7C3AED); // Soft violet
-  static const Color categoryFitness = Color(0xFFEA580C); // Warm orange
-  static const Color categoryLearning = Color(0xFF2563EB); // Calm blue
+  static const Color categoryHealth = Color(0xFF5A7233); // Stitch: Olive
+  static const Color categoryMind = Color(0xFF6B5B8C); // Stitch: Violet
+  static const Color categoryFitness = Color(0xFFAC5E2D); // Stitch: Terracotta
+  static const Color categoryLearning = Color(0xFF3F6480); // Stitch: Slate
   static const Color categoryCreativity = Color(0xFFDB2777); // Soft rose
   static const Color categorySocial = Color(0xFF0891B2); // Teal
   static const Color categorySelfCare = Color(0xFFD97706); // Amber

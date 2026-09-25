@@ -41,8 +41,13 @@ class AnimatedContinueButton extends StatelessWidget {
                     onPressed: () {
                       context.go(AppRouter.dashboard);
                     },
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                    label: const Text("Continue"),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                    iconAlignment: IconAlignment.end,
+                    label: Text(
+                      'Continue',
+                      style: AppTypography.textTheme.titleMedium
+                          ?.copyWith(color: AppColors.textOnPrimary),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.textOnPrimary,

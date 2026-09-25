@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +11,7 @@ import '../models/habit_models.dart';
 import '../services/database_service.dart';
 import '../../core/extensions/date_extensions.dart';
 import '../../core/providers/current_date_provider.dart';
+import '../../core/utils/habit_schedule.dart';
 import '../../core/utils/streak_calculator.dart';
 
 /// Repository providing all habit-related data to the presentation layer.
@@ -409,8 +409,14 @@ class HabitRepository {
           completionRate: scheduledDays == 0
               ? 0.0
               : (recent.length / scheduledDays).clamp(0.0, 1.0),
-          currentStreak: StreakCalculator.currentStreak(allDates),
-          longestStreak: StreakCalculator.longestStreak(allDates),
+          currentStreak: StreakCalculator.currentStreak(
+            allDates,
+            isScheduled: (day) => _isHabitScheduledForDay(habit, day),
+          ),
+          longestStreak: StreakCalculator.longestStreak(
+            allDates,
+            isScheduled: (day) => _isHabitScheduledForDay(habit, day),
+          ),
           totalCompletions: allTime.length,
         ),
       );
@@ -442,9 +448,31 @@ class HabitRepository {
       uniqueDates.add(c.completedDate.startOfDay);
     }
     final sortedDates = uniqueDates.toList()..sort();
+
+    // A day only counts as "due" if some active habit was actually scheduled
+    // on it — otherwise a Mon–Fri-only account loses its overall streak
+    // every weekend, same bug as the single-habit case.
+    //
+    // ponytail: judged against *today's* active habits/schedules, not each
+    // day's historical schedule — a habit created or reschedued mid-streak
+    // is read as if it always had its current schedule. Good enough for a
+    // "day complete" streak; revisit if that mismatch starts to matter.
+    final activeHabits = await _habitDao.getActiveHabits();
+    final isScheduled = activeHabits.isEmpty
+        ? null // no active habits: fall back to "every day", so leftover
+        // completions from archived habits don't keep a streak alive forever
+        : (DateTime day) =>
+            activeHabits.any((h) => _isHabitScheduledForDay(h, day));
+
     return StreakData(
-      currentStreak: StreakCalculator.currentStreak(sortedDates),
-      longestStreak: StreakCalculator.longestStreak(sortedDates),
+      currentStreak: StreakCalculator.currentStreak(
+        sortedDates,
+        isScheduled: isScheduled,
+      ),
+      longestStreak: StreakCalculator.longestStreak(
+        sortedDates,
+        isScheduled: isScheduled,
+      ),
       lastCompletedDate: sortedDates.isNotEmpty ? sortedDates.last : null,
     );
   }
@@ -601,11 +629,15 @@ class HabitRepository {
 
   /// Get streak data for a specific habit.
   Future<StreakData> getHabitStreakData(int habitId) async {
+    final habit = await _habitDao.getHabitById(habitId);
     final completions = await _completionDao.getCompletionsForHabit(habitId);
     final dates = completions.map((c) => c.completedDate).toList();
+    bool isScheduled(DateTime day) => habit == null
+        ? true
+        : _isHabitScheduledForDay(habit, day);
     return StreakData(
-      currentStreak: StreakCalculator.currentStreak(dates),
-      longestStreak: StreakCalculator.longestStreak(dates),
+      currentStreak: StreakCalculator.currentStreak(dates, isScheduled: isScheduled),
+      longestStreak: StreakCalculator.longestStreak(dates, isScheduled: isScheduled),
       lastCompletedDate: dates.isNotEmpty ? dates.last : null,
     );
   }
@@ -621,22 +653,7 @@ class HabitRepository {
   // ---------------------------------------------------------------------------
 
   bool _isHabitScheduledForDay(Habit habit, DateTime day) {
-    switch (habit.frequencyType) {
-      case 'daily':
-        return true;
-      case 'specific_days':
-        if (habit.frequencyConfig == null) return true;
-        try {
-          final config = jsonDecode(habit.frequencyConfig!) as List;
-          return config.contains(day.weekday);
-        } catch (_) {
-          return true;
-        }
-      case 'x_per_week':
-        return true;
-      default:
-        return true;
-    }
+    return isScheduledOn(habit.frequencyType, habit.frequencyConfig, day);
   }
 
   // ---------------------------------------------------------------------------
@@ -822,4 +839,13 @@ final reflectionDaoProvider = Provider<ReflectionDao>((ref) {
 final mostCommonReasonsProvider =
     StreamProvider<List<ReasonFrequency>>((ref) {
   return ref.watch(reflectionDaoProvider).watchMostCommonReasons();
+});
+
+/// Same as [mostCommonReasonsProvider], scoped to one habit — used by
+/// Habit Detail's "Why it slipped" section.
+final habitReasonsProvider =
+    StreamProvider.family<List<ReasonFrequency>, int>((ref, habitId) {
+  return ref
+      .watch(reflectionDaoProvider)
+      .watchMostCommonReasonsForHabit(habitId);
 });

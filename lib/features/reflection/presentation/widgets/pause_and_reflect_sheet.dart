@@ -56,7 +56,7 @@ const _kCategories = <_ReasonCategory>[
       _ReasonItem(label: 'Too Busy', key: 'too_busy'),
       _ReasonItem(label: 'Unexpected Work', key: 'unexpected_work'),
       _ReasonItem(label: 'Meetings', key: 'meetings'),
-      _ReasonItem(label: 'Family Responsibilities', key: 'family'),
+      _ReasonItem(label: 'Family', key: 'family'),
     ],
   ),
   _ReasonCategory(
@@ -67,24 +67,24 @@ const _kCategories = <_ReasonCategory>[
       _ReasonItem(label: 'Lost Motivation', key: 'lost_motivation'),
       _ReasonItem(label: 'Procrastinated', key: 'procrastinated'),
       _ReasonItem(label: 'Forgot', key: 'forgot'),
-      _ReasonItem(label: 'Felt Overwhelmed', key: 'felt_overwhelmed'),
+      _ReasonItem(label: 'Overwhelmed', key: 'felt_overwhelmed'),
       _ReasonItem(label: "Couldn't Focus", key: 'couldnt_focus'),
     ],
   ),
   _ReasonCategory(
     key: 'environment',
-    icon: Icons.public_outlined,
+    icon: Icons.pin_drop_outlined,
     label: 'Environment',
     reasons: [
       _ReasonItem(label: 'Traveling', key: 'traveling'),
       _ReasonItem(label: 'Weather', key: 'weather'),
       _ReasonItem(label: 'No Equipment', key: 'no_equipment'),
-      _ReasonItem(label: 'Outside Home', key: 'outside_home'),
+      _ReasonItem(label: 'Away From Home', key: 'outside_home'),
     ],
   ),
   _ReasonCategory(
     key: 'personal',
-    icon: Icons.favorite_outline,
+    icon: Icons.self_improvement_outlined,
     label: 'Personal',
     reasons: [
       _ReasonItem(label: 'Needed Rest', key: 'needed_rest'),
@@ -198,10 +198,6 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
 
   bool _isSaving = false;
 
-  /// Mirrors whether the free-text field has content, so the footer button can
-  /// react to typing. A TextField does not rebuild its ancestors on its own.
-  bool _hasCustomText = false;
-
   // ----- Derived state ------------------------------------------------------
 
   /// Follow-up question to display, or null if none apply.
@@ -214,25 +210,15 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _customTextController.addListener(_onCustomTextChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.forward();
     });
   }
 
-  void _onCustomTextChanged() {
-    final hasText = _customTextController.text.trim().isNotEmpty;
-    if (hasText != _hasCustomText) {
-      setState(() => _hasCustomText = hasText);
-    }
-  }
-
   @override
   void dispose() {
     _controller.dispose();
-    _customTextController
-      ..removeListener(_onCustomTextChanged)
-      ..dispose();
+    _customTextController.dispose();
     super.dispose();
   }
 
@@ -372,10 +358,18 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Leaf icon + header text
-                    const Icon(
-                      Icons.eco_outlined,
-                      size: 32,
-                      color: AppColors.primary,
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        color: AppColors.surfaceVariant,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.eco,
+                        size: 28,
+                        color: AppColors.success,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
 
@@ -398,7 +392,7 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'What got in the way today?',
+                      'What got in the way?',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w600,
@@ -488,7 +482,7 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
       children: [
         Row(
           children: [
-            const Icon(Icons.edit_outlined, size: 16, color: AppColors.textPrimary),
+            const Icon(Icons.edit_note_rounded, size: 16, color: AppColors.textPrimary),
             const SizedBox(width: AppSpacing.sm),
             Text(
               'My Reason',
@@ -594,8 +588,6 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
   }
 
   Widget _buildFooter() {
-    final hasSelection = _selectedKeys.isNotEmpty || _hasCustomText;
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -629,14 +621,18 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
                           color: Colors.white,
                         ),
                       )
-                    : Text(hasSelection ? 'Continue' : 'Done'),
+                    : Text(
+                        'Continue',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: AppColors.textOnPrimary),
+                      ),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
               "Tomorrow, we'll try again.",
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
+                color: AppColors.textDisabled,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -673,11 +669,11 @@ class _CategorySection extends StatelessWidget {
             Icon(category.icon, size: 16, color: AppColors.textSecondary),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              category.label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              category.label.toUpperCase(),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textSecondary,
-                letterSpacing: 0.5,
+                letterSpacing: 1,
               ),
             ),
           ],
@@ -727,18 +723,18 @@ class _ReasonChip extends StatelessWidget {
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.08)
-              : AppColors.surfaceVariant,
+          color: isSelected ? AppColors.surface : AppColors.surfaceVariant,
           borderRadius: AppRadius.chip,
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border,
-            width: isSelected ? 1.5 : 1.0,
+            width: isSelected ? 2 : 1,
           ),
+          boxShadow: isSelected ? AppShadows.sm : null,
         ),
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontSize: 13,
             color: isSelected ? AppColors.primary : AppColors.textPrimary,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),

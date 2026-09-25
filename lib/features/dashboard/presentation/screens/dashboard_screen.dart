@@ -9,31 +9,27 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_extensions.dart';
 import '../../../../core/providers/current_date_provider.dart';
 import '../../../../core/widgets/animated_list_item.dart';
+import '../../../../core/widgets/count_badge.dart';
 import '../../../../core/widgets/section_header.dart';
-import '../../../../core/widgets/tracely_empty_state.dart';
-import '../../../../core/widgets/tracely_shimmer.dart';
-import '../../../../core/widgets/tracely_top_bar.dart';
 import '../../../../data/models/habit_models.dart';
+import '../../../../data/models/task_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
+import '../../../../data/repositories/task_repository.dart';
 import '../../../../data/services/reflection_gate_service.dart';
 import '../../../reflection/presentation/widgets/pause_and_reflect_sheet.dart';
-import '../widgets/breathing_background.dart';
 import '../widgets/daily_progress_card.dart';
 import '../widgets/dashboard_greeting_section.dart';
 import '../widgets/dashboard_motivation_footer.dart';
+import '../widgets/dashboard_state_views.dart';
 import '../widgets/habit_tile.dart';
-import '../widgets/quick_stats_row.dart';
-import '../widgets/recent_activity_section.dart';
-import '../widgets/weekly_heatmap_preview.dart';
+import '../widgets/todays_tasks_section.dart';
 
-/// The Dashboard — Tracely's daily companion screen.
+/// The Dashboard — Tracely's daily companion screen, matching the Stitch
+/// `dashboard/code.html` mockup: plain greeting header, ring progress card,
+/// Today's Habits, Today's Tasks, quote footer.
 ///
-/// Entrance animation (total: 1200ms) uses a single AnimationController.
+/// Entrance animation (total: 950ms) uses a single AnimationController.
 /// All child widgets receive animated values computed from Interval slices.
-///
-/// Also features:
-/// - §6.6 Breathing background (ambient radial pulse)
-/// - §6.7 Momentum nudge (subtle text when 60–99% complete)
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -51,12 +47,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   late final Animation<double> _progressSlide;
   late final Animation<double> _habitsHeaderOpacity;
   late final Animation<double> _habitsHeaderSlide;
-  late final Animation<double> _heatmapOpacity;
-  late final Animation<double> _heatmapSlide;
-  late final Animation<double> _activityOpacity;
-  late final Animation<double> _activitySlide;
+  late final Animation<double> _tasksOpacity;
+  late final Animation<double> _tasksSlide;
   late final Animation<double> _footerOpacity;
-  late final Animation<double> _nudgeOpacity;
 
   @override
   void initState() {
@@ -109,40 +102,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
     );
 
-    // 4. Weekly heatmap: 0.50–0.75
-    _heatmapOpacity = CurvedAnimation(
+    // 4. Today's Tasks: 0.55–0.80
+    _tasksOpacity = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.50, 0.75, curve: Curves.easeOut),
+      curve: const Interval(0.55, 0.80, curve: Curves.easeOut),
     );
-    _heatmapSlide = Tween<double>(begin: 20, end: 0).animate(
+    _tasksSlide = Tween<double>(begin: 16, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.50, 0.78, curve: Curves.easeOutCubic),
+        curve: const Interval(0.55, 0.83, curve: Curves.easeOutCubic),
       ),
     );
 
-    // 5. Activity: 0.65–0.85
-    _activityOpacity = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.65, 0.85, curve: Curves.easeOut),
-    );
-    _activitySlide = Tween<double>(begin: 16, end: 0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.65, 0.88, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    // 6. Footer: 0.80–1.0
+    // 5. Footer: 0.80–1.0
     _footerOpacity = CurvedAnimation(
       parent: _controller,
       curve: const Interval(0.80, 1.0, curve: Curves.easeOut),
-    );
-
-    // Momentum nudge: appears after everything else settles (0.85–1.0)
-    _nudgeOpacity = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.85, 1.0, curve: Curves.easeOut),
     );
   }
 
@@ -181,64 +156,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.dispose();
   }
 
+  /// Small counts read better as words — "All five, done." matches Stitch;
+  /// above ten, digits are clearer than spelling them out.
+  static String _countWord(int n) {
+    const words = [
+      'zero', 'one', 'two', 'three', 'four', 'five',
+      'six', 'seven', 'eight', 'nine', 'ten',
+    ];
+    return n >= 0 && n < words.length ? words[n] : '$n';
+  }
+
   Future<void> _toggleHabit(int habitId) async {
     final today = ref.read(currentDateProvider);
     await ref.read(habitRepositoryProvider).toggleCompletion(habitId, today);
   }
 
+  Future<void> _toggleTask(int taskId, bool isDone) async {
+    await ref.read(taskRepositoryProvider).setTaskDone(taskId, isDone);
+  }
+
   @override
   Widget build(BuildContext context) {
     final habitsAsync = ref.watch(todaysHabitsProvider);
-    final progressAsync = ref.watch(todaysProgressProvider);
-    final heatmapAsync = ref.watch(weeklyHeatmapProvider);
-    final activityAsync = ref.watch(recentCompletionsProvider);
+    final activeHabitsAsync = ref.watch(activeHabitsProvider);
+    final tasksAsync = ref.watch(todaysTasksProvider);
     final streakAsync = ref.watch(overallStreakProvider);
-
-    final progress = progressAsync.asData?.value ??
-        const DailyProgress(completedCount: 0, totalCount: 0);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // §6.6 Breathing background — ambient radial pulse
-          BreathingBackground(
-            weeklyCompletionRate: progress.percentage,
-          ),
-
-          SafeArea(
-            child: Column(
-              children: [
-                TracelyTopBar(onAvatarTap: () => context.push(AppRouter.settings)),
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, _) {
-                      return habitsAsync.when(
-                        loading: () => _buildLoadingState(),
-                        error: (err, stack) => _buildErrorState(err),
-                        data: (habits) {
-                          if (habits.isEmpty) {
-                            return _buildEmptyState();
-                          }
-                          return _buildLoadedState(
-                            habits: habits,
-                            progress: progress,
-                            heatmapAsync: heatmapAsync,
-                            activityAsync: activityAsync,
-                            currentStreak:
-                                streakAsync.asData?.value.currentStreak ?? 0,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      body: SafeArea(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            return habitsAsync.when(
+              loading: () => _buildLoadingState(),
+              error: (err, stack) => _buildErrorState(err),
+              data: (habits) {
+                if (habits.isEmpty) {
+                  // Zero scheduled *today* has two very different causes:
+                  // no habit ever created (true first-run empty state), or
+                  // habits exist but none are due today, e.g. a Mon–Fri
+                  // habit's Saturday (a rest day — Today's Tasks still
+                  // matters there, since tasks aren't schedule-gated).
+                  final hasAnyHabit =
+                      activeHabitsAsync.asData?.value.isNotEmpty ?? false;
+                  return hasAnyHabit
+                      ? _buildRestDayState(tasksAsync.asData?.value ?? [])
+                      : _buildEmptyState();
+                }
+                // Single source of truth: the ring and the header count
+                // both derive from this same habits list.
+                final progress = DailyProgress(
+                  completedCount:
+                      habits.where((h) => h.isCompletedToday).length,
+                  totalCount: habits.length,
+                );
+                return _buildLoadedState(
+                  habits: habits,
+                  progress: progress,
+                  tasks: tasksAsync.asData?.value ?? [],
+                  currentStreak:
+                      streakAsync.asData?.value.currentStreak ?? 0,
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -247,52 +230,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // Loading state
   // ---------------------------------------------------------------------------
 
-  Widget _buildLoadingState() {
-    return SingleChildScrollView(
-      padding: AppSpacing.screen,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: AppSpacing.xl),
-          const TracelyShimmerLine(width: 160, height: 28),
-          const SizedBox(height: AppSpacing.sm),
-          const TracelyShimmerLine(width: 120, height: 16),
-          const SizedBox(height: AppSpacing.xxl),
-          TracelyShimmer(
-            width: double.infinity,
-            height: 130,
-            borderRadius: AppRadius.card,
-          ),
-          const SizedBox(height: AppSpacing.sectionGap),
-          const TracelyShimmerLine(width: 140, height: 18),
-          const SizedBox(height: AppSpacing.md),
-          ...List.generate(
-            3,
-            (i) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: TracelyShimmer(
-                width: double.infinity,
-                height: AppSizes.cardMinHeight,
-                borderRadius: AppRadius.card,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildLoadingState() => const DashboardLoadingView();
 
   // ---------------------------------------------------------------------------
   // Error state
   // ---------------------------------------------------------------------------
 
   Widget _buildErrorState(Object error) {
-    return TracelyEmptyState(
-      icon: Icons.cloud_off_rounded,
-      title: AppStrings.errorDashboardTitle,
-      body: AppStrings.errorDashboardBody,
-      ctaLabel: AppStrings.errorDashboardCta,
-      onCta: () => ref.invalidate(todaysHabitsProvider),
+    return DashboardErrorView(
+      onRetry: () => ref.invalidate(todaysHabitsProvider),
     );
   }
 
@@ -303,12 +249,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Widget _buildEmptyState() {
     return Opacity(
       opacity: _greetingOpacity.value,
-      child: TracelyEmptyState(
-        icon: Icons.self_improvement_rounded,
-        title: AppStrings.emptyDashboardTitle,
-        body: AppStrings.emptyDashboardBody,
-        ctaLabel: AppStrings.emptyDashboardCta,
-        onCta: () => context.push(AppRouter.addHabit),
+      child: DashboardEmptyView(
+        onAddHabit: () => context.push(AppRouter.addHabit),
+        onSettingsTap: () => context.push(AppRouter.settings),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rest-day state — habits exist, none scheduled today
+  // ---------------------------------------------------------------------------
+
+  Widget _buildRestDayState(List<TaskWithCategory> tasks) {
+    return Opacity(
+      opacity: _greetingOpacity.value,
+      child: DashboardRestDayView(
+        tasks: tasks,
+        onToggleTask: _toggleTask,
+        onSettingsTap: () => context.push(AppRouter.settings),
       ),
     );
   }
@@ -320,21 +278,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Widget _buildLoadedState({
     required List<HabitWithCompletion> habits,
     required DailyProgress progress,
-    required AsyncValue<List<DayCompletion>> heatmapAsync,
-    required AsyncValue<List<CompletionWithHabit>> activityAsync,
+    required List<TaskWithCategory> tasks,
     required int currentStreak,
   }) {
-    final heatmap = heatmapAsync.asData?.value ?? [];
-    final activity = activityAsync.asData?.value ?? [];
-    final weeklyConsistency = heatmap.isEmpty
-        ? 0.0
-        : heatmap.map((d) => d.completionPercentage).reduce((a, b) => a + b) /
-            heatmap.length;
-
-    // §6.7 Momentum nudge: show when 60–99% done
-    final showNudge =
-        !progress.isEmpty && !progress.allDone && progress.percentage >= 0.6;
-
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -348,6 +294,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               DashboardGreetingSection(
                 opacity: _greetingOpacity.value,
                 translateY: _greetingSlide.value,
+                currentStreak: currentStreak,
+                allDone: progress.allDone,
+                onSettingsTap: () => context.push(AppRouter.settings),
               ),
 
               const SizedBox(height: AppSpacing.sectionGap),
@@ -360,26 +309,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 cardTranslateY: _progressSlide.value,
               ),
 
-              // §6.7 Momentum nudge
-              if (showNudge)
-                AnimatedOpacity(
-                  opacity: _nudgeOpacity.value,
-                  duration: AppDurations.medium,
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      top: AppSpacing.sm,
-                      left: AppSpacing.xxl,
-                    ),
-                    child: Text(
-                      'Almost there — just ${progress.remaining} left.',
-                      style: context.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ),
-
               const SizedBox(height: AppSpacing.sectionGap),
 
               // 3. Today's Habits header
@@ -391,13 +320,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     title: AppStrings.sectionTodaysHabits,
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.xl,
-                      vertical: AppSpacing.xs,
                     ),
-                    trailing: Text(
-                      '${habits.where((h) => h.isCompletedToday).length}/${habits.length}',
-                      style: context.textTheme.labelMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                    trailing: CountBadge(
+                      done:
+                          habits.where((h) => h.isCompletedToday).length,
+                      total: habits.length,
                     ),
                   ),
                 ),
@@ -421,6 +348,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 child: HabitTile(
                   habit: habits[i],
                   onToggle: () => _toggleHabit(habits[i].habitId),
+                  allDone: progress.allDone,
                 ),
               );
             },
@@ -431,38 +359,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         SliverToBoxAdapter(
           child: Column(
             children: [
-              const SizedBox(height: AppSpacing.sectionGap),
-
-              // 4. Weekly Heatmap
-              WeeklyHeatmapPreview(
-                days: heatmap,
-                opacity: _heatmapOpacity.value,
-                translateY: _heatmapSlide.value,
-                onTap: () => context.go(AppRouter.statistics),
-              ),
-
-              const SizedBox(height: AppSpacing.sm),
-
-              // 4b. Quick stat chips — streak + weekly consistency
-              QuickStatsRow(
-                currentStreak: currentStreak,
-                weeklyConsistency: weeklyConsistency,
-                opacity: _heatmapOpacity.value,
-                translateY: _heatmapSlide.value,
-              ),
-
-              if (activity.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sectionGap),
-
-                // 5. Recent Activity
-                RecentActivitySection(
-                  completions: activity,
-                  opacity: _activityOpacity.value,
-                  translateY: _activitySlide.value,
+              if (progress.allDone) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'All ${_countWord(progress.totalCount)}, done.',
+                  style: context.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.success,
+                  ),
                 ),
               ],
 
-              // 6. Motivation footer
+              const SizedBox(height: AppSpacing.sectionGap),
+
+              // 4. Today's Tasks
+              TodaysTasksSection(
+                tasks: tasks,
+                onToggle: _toggleTask,
+                allDone: progress.allDone,
+                opacity: _tasksOpacity.value,
+                translateY: _tasksSlide.value,
+              ),
+
+              // 5. Motivation footer
               DashboardMotivationFooter(
                 opacity: _footerOpacity.value,
               ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/utils/habit_schedule.dart';
 import '../../../../data/database/app_database.dart';
 
 /// Habit tile in the Habits management screen.
@@ -21,19 +22,6 @@ class HabitManagementTile extends StatelessWidget {
   final Category? category;
   final VoidCallback onTap;
 
-  String get _frequencyLabel {
-    switch (habit.frequencyType) {
-      case 'daily':
-        return 'Daily';
-      case 'specific_days':
-        return 'Specific days';
-      case 'x_per_week':
-        return 'Custom';
-      default:
-        return 'Daily';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final color = category != null
@@ -44,22 +32,22 @@ class HabitManagementTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
-        vertical: AppSpacing.xxs,
+        vertical: AppSpacing.xs,
       ),
+      constraints: const BoxConstraints(minHeight: AppSizes.cardMinHeight),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: AppRadius.card,
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: AppShadows.sm,
       ),
+      clipBehavior: Clip.antiAlias,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: AppRadius.card,
           onTap: onTap,
           splashColor: AppColors.primary.withValues(alpha: 0.05),
           child: Padding(
-            padding: AppSpacing.habitTile,
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(
               children: [
                 // Category dot
@@ -89,18 +77,15 @@ class HabitManagementTile extends StatelessWidget {
                     children: [
                       Text(
                         habit.name,
-                        style: context.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: context.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w500),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: AppSpacing.xxs),
                       Text(
-                        _frequencyLabel,
-                        style: context.textTheme.labelMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                        frequencyLabel(habit.frequencyType, habit.frequencyConfig),
+                        style: context.textTheme.bodySmall,
                       ),
                     ],
                   ),

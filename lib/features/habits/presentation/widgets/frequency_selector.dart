@@ -29,19 +29,23 @@ class FrequencySelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Frequency type chips
+        // Frequency type toggle — two equal-width segments
         Row(
           children: [
-            _FrequencyChip(
-              label: AppStrings.frequencyDaily,
-              isSelected: frequencyType == 'daily',
-              onTap: () => onFrequencyTypeChanged('daily'),
+            Expanded(
+              child: _FrequencyChip(
+                label: AppStrings.frequencyDaily,
+                isSelected: frequencyType == 'daily',
+                onTap: () => onFrequencyTypeChanged('daily'),
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            _FrequencyChip(
-              label: AppStrings.frequencySpecificDays,
-              isSelected: frequencyType == 'specific_days',
-              onTap: () => onFrequencyTypeChanged('specific_days'),
+            Expanded(
+              child: _FrequencyChip(
+                label: AppStrings.frequencySpecificDays,
+                isSelected: frequencyType == 'specific_days',
+                onTap: () => onFrequencyTypeChanged('specific_days'),
+              ),
             ),
           ],
         ),
@@ -76,22 +80,20 @@ class _FrequencyChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: AppDurations.fast,
-        padding: AppSpacing.chip,
+        height: 40,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.10)
-              : AppColors.surface,
-          borderRadius: AppRadius.chip,
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
-            width: isSelected ? 1.5 : 1,
-          ),
+          color: isSelected ? AppColors.surface : AppColors.surfaceVariant,
+          borderRadius: AppRadius.small,
+          border: isSelected
+              ? Border.all(color: AppColors.primary, width: 2)
+              : null,
+          boxShadow: isSelected ? AppShadows.sm : null,
         ),
         child: Text(
           label,
-          style: context.textTheme.labelSmall?.copyWith(
+          style: context.textTheme.titleSmall?.copyWith(
             color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
       ),
@@ -143,11 +145,10 @@ class _DaySelector extends StatelessWidget {
             child: Center(
               child: Text(
                 _days[i],
-                style: context.textTheme.labelSmall?.copyWith(
+                style: context.textTheme.titleSmall?.copyWith(
                   color: isSelected
                       ? AppColors.textOnPrimary
                       : AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),

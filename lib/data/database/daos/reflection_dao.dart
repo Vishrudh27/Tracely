@@ -117,6 +117,34 @@ class ReflectionDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+  /// Watch the most frequently selected reasons for one habit's missed days.
+  ///
+  /// Same shape as [watchMostCommonReasons], scoped to a single habit — used
+  /// by Habit Detail's "Why it slipped" section.
+  Stream<List<ReasonFrequency>> watchMostCommonReasonsForHabit(
+    int habitId, {
+    int limit = 3,
+  }) {
+    final reasonCount = habitReflections.reason;
+    final count = habitReflections.id.count();
+
+    final query = db.selectOnly(habitReflections)
+      ..addColumns([reasonCount, count])
+      ..where(habitReflections.habitId.equals(habitId))
+      ..groupBy([reasonCount])
+      ..orderBy([OrderingTerm.desc(count)])
+      ..limit(limit);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return ReasonFrequency(
+          reason: row.read(reasonCount) ?? '',
+          count: row.read(count) ?? 0,
+        );
+      }).toList();
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // HabitReflections writes
   // ---------------------------------------------------------------------------

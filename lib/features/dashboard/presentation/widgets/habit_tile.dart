@@ -21,10 +21,15 @@ class HabitTile extends StatefulWidget {
     super.key,
     required this.habit,
     required this.onToggle,
+    this.allDone = false,
   });
 
   final HabitWithCompletion habit;
   final VoidCallback onToggle;
+
+  /// Whether every habit today is complete — recolors the checkmark from
+  /// coffee-brown to success green, matching `dashboard_all_done_state`.
+  final bool allDone;
 
   @override
   State<HabitTile> createState() => _HabitTileState();
@@ -108,10 +113,12 @@ class _HabitTileState extends State<HabitTile>
       ),
     ]).animate(_checkController);
 
-    // Phase 2: Fill color morph (border→success)
+    // Phase 2: Fill color morph (outline→primary, or success once every
+    // habit today is complete)
+    final checkedColor = widget.allDone ? AppColors.success : AppColors.primary;
     final fillColorAnim = ColorTween(
-      begin: AppColors.border,
-      end: AppColors.success,
+      begin: AppColors.borderOutline,
+      end: checkedColor,
     ).animate(
       CurvedAnimation(
         parent: _checkController,
@@ -134,10 +141,10 @@ class _HabitTileState extends State<HabitTile>
       ),
     );
 
-    // Phase 4: Text color shift + strikethrough fade-in
+    // Phase 4: Text color fade to disabled once completed
     final textColorAnim = ColorTween(
       begin: AppColors.textPrimary,
-      end: AppColors.textSecondary,
+      end: AppColors.textDisabled,
     ).animate(
       CurvedAnimation(
         parent: _checkController,
@@ -150,28 +157,6 @@ class _HabitTileState extends State<HabitTile>
       CurvedAnimation(
         parent: _checkController,
         curve: const Interval(0.45, 0.80, curve: Curves.easeOut),
-      ),
-    );
-
-    // Tile border color morphs subtly on completion
-    final borderColorAnim = ColorTween(
-      begin: AppColors.border,
-      end: AppColors.completedBorder,
-    ).animate(
-      CurvedAnimation(
-        parent: _checkController,
-        curve: const Interval(0.15, 0.85, curve: Curves.easeOut),
-      ),
-    );
-
-    // Tile background color morphs on completion
-    final bgColorAnim = ColorTween(
-      begin: AppColors.uncompletedBackground,
-      end: AppColors.completedBackground,
-    ).animate(
-      CurvedAnimation(
-        parent: _checkController,
-        curve: const Interval(0.15, 0.85, curve: Curves.easeOut),
       ),
     );
 
@@ -190,74 +175,92 @@ class _HabitTileState extends State<HabitTile>
           child: Container(
             margin: const EdgeInsets.symmetric(
               horizontal: AppSpacing.xl,
-              vertical: AppSpacing.xxs,
+              vertical: AppSpacing.xs,
             ),
+            constraints: const BoxConstraints(minHeight: AppSizes.cardMinHeight),
             decoration: BoxDecoration(
-              color: bgColorAnim.value,
-              borderRadius: AppRadius.card,
-              border: Border.all(
-                color: borderColorAnim.value ?? AppColors.border,
-                width: isCompleted ? 1.2 : 1.0,
-              ),
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
               boxShadow: AppShadows.sm,
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: AppRadius.card,
-                onTap: _handleTap,
-                splashColor: AppColors.primary.withValues(alpha: 0.05),
-                highlightColor: AppColors.primary.withValues(alpha: 0.02),
-                child: Padding(
-                  padding: AppSpacing.habitTile,
-                  child: Row(
-                    children: [
-                      // Category dot
-                      _CategoryDot(colorValue: widget.habit.categoryColorValue),
-                      const SizedBox(width: AppSpacing.md),
-
-                      // Habit icon
-                      Icon(
-                        AppIconRegistry.resolve(widget.habit.emoji),
-                        size: 20,
-                        color: textColorAnim.value,
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-
-                      // Habit name with animated text
-                      Expanded(
-                        child: Text(
-                          widget.habit.name,
-                          style: context.textTheme.bodyLarge?.copyWith(
-                            color: textColorAnim.value,
-                            decoration: isCompleted
-                                ? TextDecoration.lineThrough
-                                : TextDecoration.none,
-                            decorationColor:
-                                AppColors.textDisabled.withValues(alpha: 0.5),
-                            decorationThickness: 1.2,
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _handleTap,
+                    splashColor: AppColors.primary.withValues(alpha: 0.05),
+                    highlightColor: AppColors.primary.withValues(alpha: 0.02),
+                    child: Padding(
+                      padding: AppSpacing.habitTile,
+                      child: Row(
+                        children: [
+                          // Completion checkbox with glow
+                          _AnimatedCheckbox(
+                            checkScale: checkScaleAnim.value,
+                            fillColor: fillColorAnim.value ?? AppColors.border,
+                            glowOpacity: glowOpacityAnim.value,
+                            glowScale: glowScaleAnim.value,
+                            checkmarkOpacity: checkmarkOpacityAnim.value,
+                            isCompleted: isCompleted,
+                            glowColor: checkedColor,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                          const SizedBox(width: 14),
 
-                      const SizedBox(width: AppSpacing.md),
+                          // Habit icon
+                          Icon(
+                            AppIconRegistry.resolve(widget.habit.emoji),
+                            size: 20,
+                            color: AppColors.textPrimary,
+                          ),
+                          const SizedBox(width: 14),
 
-                      // Completion checkbox with glow
-                      _AnimatedCheckbox(
-                        checkScale: checkScaleAnim.value,
-                        fillColor: fillColorAnim.value ?? AppColors.border,
-                        glowOpacity: glowOpacityAnim.value,
-                        glowScale: glowScaleAnim.value,
-                        checkmarkOpacity: checkmarkOpacityAnim.value,
-                        isCompleted: isCompleted,
-                        categoryColor: Color(widget.habit.categoryColorValue),
+                          // Name + category, stacked
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  widget.habit.name,
+                                  style: context.textTheme.titleMedium
+                                      ?.copyWith(color: textColorAnim.value),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.habit.categoryName,
+                                  style: context.textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+
+                // Category accent bar, pinned to the right edge
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: 3,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Color(widget.habit.categoryColorValue),
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -275,7 +278,7 @@ class _AnimatedCheckbox extends StatelessWidget {
     required this.glowScale,
     required this.checkmarkOpacity,
     required this.isCompleted,
-    required this.categoryColor,
+    required this.glowColor,
   });
 
   final double checkScale;
@@ -284,15 +287,16 @@ class _AnimatedCheckbox extends StatelessWidget {
   final double glowScale;
   final double checkmarkOpacity;
   final bool isCompleted;
-  final Color categoryColor;
+  final Color glowColor;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: AppSizes.completionCheckboxRipple,
-      height: AppSizes.completionCheckboxRipple,
+      width: AppSizes.completionCheckbox,
+      height: AppSizes.completionCheckbox,
       child: Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
           // Outer glow ring — expands and fades
           Transform.scale(
@@ -302,9 +306,7 @@ class _AnimatedCheckbox extends StatelessWidget {
               height: AppSizes.completionCheckboxRipple,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.success.withValues(
-                  alpha: 0.18 * glowOpacity,
-                ),
+                color: glowColor.withValues(alpha: 0.18 * glowOpacity),
               ),
             ),
           ),
@@ -316,9 +318,7 @@ class _AnimatedCheckbox extends StatelessWidget {
               height: AppSizes.completionCheckboxRipple * 0.75,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.success.withValues(
-                  alpha: 0.10 * glowOpacity,
-                ),
+                color: glowColor.withValues(alpha: 0.10 * glowOpacity),
               ),
             ),
           ),
@@ -338,7 +338,7 @@ class _AnimatedCheckbox extends StatelessWidget {
                 boxShadow: isCompleted
                     ? [
                         BoxShadow(
-                          color: AppColors.success.withValues(alpha: 0.25),
+                          color: glowColor.withValues(alpha: 0.25),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -361,27 +361,6 @@ class _AnimatedCheckbox extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-
-
-/// Small colored dot indicating the habit's category.
-class _CategoryDot extends StatelessWidget {
-  const _CategoryDot({required this.colorValue});
-
-  final int colorValue;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: AppSizes.categoryDot,
-      height: AppSizes.categoryDot,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Color(colorValue),
       ),
     );
   }

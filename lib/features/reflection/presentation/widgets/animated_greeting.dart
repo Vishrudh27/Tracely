@@ -2,19 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/utils/greeting_utils.dart';
 
 class AnimatedGreeting extends StatelessWidget {
   const AnimatedGreeting({super.key, required this.controller});
 
   final AnimationController controller;
-
-  String _greeting() {
-    final hour = DateTime.now().hour;
-
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,20 +46,20 @@ class AnimatedGreeting extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _greeting(),
+                      GreetingUtils.greeting(),
                       textAlign: TextAlign.center,
-                      style: AppTypography.textTheme.displaySmall?.copyWith(
+                      style: AppTypography.textTheme.displayMedium?.copyWith(
                         color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
 
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.xs),
 
                     Text(
                       DateFormat('EEEE, d MMMM').format(DateTime.now()),
                       textAlign: TextAlign.center,
-                      style: AppTypography.textTheme.titleMedium?.copyWith(
+                      style: AppTypography.textTheme.bodyLarge?.copyWith(
                         color: AppColors.textSecondary,
                       ),
                     ),

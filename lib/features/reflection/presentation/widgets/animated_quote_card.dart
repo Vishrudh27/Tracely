@@ -54,13 +54,12 @@ class AnimatedQuoteCard extends StatelessWidget {
                 padding: AppSpacing.screen,
                 child: Container(
                   width: double.infinity,
-                  padding: AppSpacing.card,
+                  padding: const EdgeInsets.all(AppSpacing.xl),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: AppRadius.card,
-                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     boxShadow: [
-                      ...AppShadows.md,
+                      ...AppShadows.sm,
                       BoxShadow(
                         color: AppColors.primary.withValues(alpha: 0.08 * glow.value),
                         blurRadius: 40 * glow.value,
@@ -71,10 +70,18 @@ class AnimatedQuoteCard extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.format_quote_rounded,
-                        color: AppColors.primary,
-                        size: AppSizes.iconLg,
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: AppColors.surfaceVariant,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.format_quote_rounded,
+                          color: AppColors.primary,
+                          size: AppSizes.iconLg,
+                        ),
                       ),
 
                       const SizedBox(height: AppSpacing.lg),
@@ -89,13 +96,12 @@ class AnimatedQuoteCard extends StatelessWidget {
                         ),
                       ),
 
-                      const SizedBox(height: AppSpacing.xl),
+                      const SizedBox(height: AppSpacing.xxl),
 
                       Text(
                         quote.author,
                         style: AppTypography.textTheme.bodyMedium?.copyWith(
                           color: AppColors.textSecondary,
-                          fontStyle: FontStyle.italic,
                         ),
                       ),
                     ],

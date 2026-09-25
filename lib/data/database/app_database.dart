@@ -27,6 +27,7 @@ part 'app_database.g.dart';
 ///   v1 — initial: Categories, Habits, HabitCompletions, DailyReflections
 ///   v2 — added HabitReflections (Pause & Reflect, §8.4a)
 ///   v3 — added Tasks (one-off to-dos, separate from recurring Habits)
+///   v4 — migrated Health/Mind/Fitness/Learning's colorValue to Stitch's hues
 @DriftDatabase(
   tables: [
     Categories,
@@ -44,7 +45,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,8 +62,33 @@ class AppDatabase extends _$AppDatabase {
             // v2 → v3: create the Tasks table
             await m.createTable(tasks);
           }
+          if (from < 4) {
+            // v3 → v4: re-color the 4 built-in categories Stitch actually
+            // specifies. Matched by name AND isBuiltIn so a user's own
+            // category coincidentally named "Health" is never touched.
+            await _recolorBuiltInCategories();
+          }
         },
       );
+
+  /// The Stitch-specified hues for the 4 built-in categories it defines.
+  /// Shared by the v3→v4 migration and [_seedDefaultCategories] so a fresh
+  /// install and an upgraded one end up with identical values.
+  static const _stitchCategoryColors = {
+    'Health': 0xFF5A7233,
+    'Mind': 0xFF6B5B8C,
+    'Fitness': 0xFFAC5E2D,
+    'Learning': 0xFF3F6480,
+  };
+
+  Future<void> _recolorBuiltInCategories() async {
+    for (final entry in _stitchCategoryColors.entries) {
+      await (update(categories)
+            ..where((c) =>
+                c.name.equals(entry.key) & c.isBuiltIn.equals(true)))
+          .write(CategoriesCompanion(colorValue: Value(entry.value)));
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Seeding
@@ -79,28 +105,28 @@ class AppDatabase extends _$AppDatabase {
       CategoriesCompanion.insert(
         name: 'Health',
         emoji: 'favorite',
-        colorValue: 0xFF65A30D,
+        colorValue: _stitchCategoryColors['Health']!,
         sortOrder: const Value(0),
         isBuiltIn: const Value(true),
       ),
       CategoriesCompanion.insert(
         name: 'Mind',
         emoji: 'psychology',
-        colorValue: 0xFF7C3AED,
+        colorValue: _stitchCategoryColors['Mind']!,
         sortOrder: const Value(1),
         isBuiltIn: const Value(true),
       ),
       CategoriesCompanion.insert(
         name: 'Fitness',
         emoji: 'fitness_center',
-        colorValue: 0xFFEA580C,
+        colorValue: _stitchCategoryColors['Fitness']!,
         sortOrder: const Value(2),
         isBuiltIn: const Value(true),
       ),
       CategoriesCompanion.insert(
         name: 'Learning',
         emoji: 'menu_book',
-        colorValue: 0xFF2563EB,
+        colorValue: _stitchCategoryColors['Learning']!,
         sortOrder: const Value(3),
         isBuiltIn: const Value(true),
       ),
@@ -135,6 +161,19 @@ class AppDatabase extends _$AppDatabase {
   // ---------------------------------------------------------------------------
   // Reset
   // ---------------------------------------------------------------------------
+
+  /// Permanently deletes one habit and every completion/reflection row
+  /// that references it. Unlike [HabitDao.archiveHabit], this cannot be
+  /// undone — the caller must confirm with the user first.
+  Future<void> deleteHabit(int habitId) async {
+    await transaction(() async {
+      await (delete(habitCompletions)..where((c) => c.habitId.equals(habitId)))
+          .go();
+      await (delete(habitReflections)..where((r) => r.habitId.equals(habitId)))
+          .go();
+      await (delete(habits)..where((h) => h.id.equals(habitId))).go();
+    });
+  }
 
   /// Permanently deletes every habit, category, task, completion, and
   /// reflection, then reseeds the built-in categories — leaving the app

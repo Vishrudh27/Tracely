@@ -20,36 +20,45 @@ class IconPickerGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: AppIconRegistry.pickerOptions.map((key) {
-        final isSelected = selected == key;
+    final options = AppIconRegistry.pickerOptions;
 
-        return GestureDetector(
-          onTap: () => onSelected(key),
-          child: AnimatedContainer(
-            duration: AppDurations.fast,
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primary.withValues(alpha: 0.10)
-                  : AppColors.surface,
-              borderRadius: AppRadius.card,
-              border: Border.all(
-                color: isSelected ? AppColors.primary : AppColors.border,
-                width: isSelected ? 1.5 : 1,
+    // Horizontal scroll row, matching Stitch's `overflow-x-auto` icon
+    // strip — the app's full icon set is far larger than Stitch's 6-tile
+    // sample, so a single scrollable row (not a multi-row Wrap) keeps
+    // Category/Frequency from being pushed down the screen.
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (context, i) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          final key = options[i];
+          final isSelected = selected == key;
+
+          return GestureDetector(
+            onTap: () => onSelected(key),
+            child: AnimatedContainer(
+              duration: AppDurations.fast,
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.surface : AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: isSelected
+                    ? Border.all(color: AppColors.primary, width: 2)
+                    : null,
+                boxShadow: isSelected ? AppShadows.sm : null,
+              ),
+              child: Icon(
+                AppIconRegistry.resolve(key),
+                size: 22,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
               ),
             ),
-            child: Icon(
-              AppIconRegistry.resolve(key),
-              size: 22,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            ),
-          ),
-        );
-      }).toList(),
+          );
+        },
+      ),
     );
   }
 }

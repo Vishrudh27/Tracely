@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers/current_date_provider.dart';
 import '../database/app_database.dart';
 import '../database/daos/category_dao.dart';
 import '../database/daos/task_dao.dart';
@@ -105,6 +106,16 @@ final taskRepositoryProvider = Provider<TaskRepository>((ref) {
 
 final tasksProvider = StreamProvider<List<TaskWithCategory>>((ref) {
   return ref.watch(taskRepositoryProvider).watchTasks();
+});
+
+/// Tasks due today, for the Dashboard's "Today's Tasks" section.
+final todaysTasksProvider = Provider<AsyncValue<List<TaskWithCategory>>>((ref) {
+  final today = ref.watch(currentDateProvider);
+  final tasksAsync = ref.watch(tasksProvider);
+  return tasksAsync.whenData(
+    (tasks) =>
+        tasks.where((t) => t.groupFor(today) == TaskGroup.today).toList(),
+  );
 });
 
 /// Which filter chip is selected on the Tasks screen.

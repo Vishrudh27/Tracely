@@ -39,50 +39,23 @@ class MostCommonReasonsCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: Container(
             width: double.infinity,
-            padding: AppSpacing.statisticsCard,
+            padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: AppRadius.card,
-              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               boxShadow: AppShadows.sm,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.visibility_outlined,
-                      size: 16,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      'What Gets in the Way',
-                      style: context.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Patterns from your reflections',
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+                Text('What gets in the way', style: context.textTheme.titleMedium),
                 const SizedBox(height: AppSpacing.lg),
 
                 // Reason rows
-                ...reasons.map(
-                  (reason) => _ReasonRow(
-                    reason: reason,
-                    totalCount: totalCount,
-                  ),
-                ),
+                for (var i = 0; i < reasons.length; i++) ...[
+                  if (i > 0) const SizedBox(height: AppSpacing.lg),
+                  ReasonRow(reason: reasons[i], totalCount: totalCount),
+                ],
               ],
             ),
           ),
@@ -93,11 +66,16 @@ class MostCommonReasonsCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _ReasonRow — a single reason with icon, label, bar, and percentage
+// ReasonRow — a single reason with icon, label, bar, and percentage
 // ---------------------------------------------------------------------------
 
-class _ReasonRow extends StatelessWidget {
-  const _ReasonRow({
+/// One reason: icon, label, share bar, percentage.
+///
+/// Shared by Statistics' "What gets in the way" and Habit Detail's
+/// "Why it slipped" — same row, different scope of data.
+class ReasonRow extends StatelessWidget {
+  const ReasonRow({
+    super.key,
     required this.reason,
     required this.totalCount,
   });
@@ -108,63 +86,42 @@ class _ReasonRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percentage = totalCount > 0 ? reason.count / totalCount : 0.0;
-    final display = _reasonDisplayInfo(reason.reason);
+    final display = reasonDisplayInfo(reason.reason);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Row(
+    return Row(
         children: [
-          // Icon
+          Icon(display.icon, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: AppSpacing.sm),
           SizedBox(
-            width: AppSpacing.xxl,
-            child: Icon(display.icon, size: 18, color: display.color),
-          ),
-
-          // Label + bar
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  display.label,
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.xs),
-                  child: LinearProgressIndicator(
-                    value: percentage.clamp(0.0, 1.0),
-                    backgroundColor: AppColors.border,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      display.color,
-                    ),
-                    minHeight: AppSpacing.xs,
-                  ),
-                ),
-              ],
+            width: 96,
+            child: Text(
+              display.label,
+              style: context.textTheme.titleSmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-
-          const SizedBox(width: AppSpacing.md),
-
-          // Percentage
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              child: LinearProgressIndicator(
+                value: percentage.clamp(0.0, 1.0),
+                backgroundColor: AppColors.surfaceVariant,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                minHeight: 6,
+              ),
+            ),
+          ),
           SizedBox(
             width: 40,
             child: Text(
               '${(percentage * 100).round()}%',
               textAlign: TextAlign.right,
-              style: context.textTheme.labelSmall?.copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+              style: context.textTheme.bodySmall,
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 }
 
@@ -173,8 +130,8 @@ class _ReasonRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 /// Display metadata for a reason key — icon, human label, and bar color.
-class _ReasonDisplay {
-  const _ReasonDisplay({
+class ReasonDisplay {
+  const ReasonDisplay({
     required this.icon,
     required this.label,
     required this.color,
@@ -186,76 +143,79 @@ class _ReasonDisplay {
 
 /// Maps a reason key from HabitReflections to its display information.
 ///
-/// One row is stored per reason, so each key here is atomic. Rows written
-/// before that change hold comma-joined keys and fall through to "Other".
-_ReasonDisplay _reasonDisplayInfo(String reasonKey) {
+/// One row is stored per reason, so each key here is atomic and gets its own
+/// label — collapsing them to their category made distinct reasons like
+/// "Forgot" and "Couldn't focus" render as two identical rows. The icon and
+/// colour still come from the reason's category. Keys written before the
+/// one-row-per-reason change are the bare category names, kept below.
+ReasonDisplay reasonDisplayInfo(String reasonKey) {
   return switch (reasonKey) {
-    // Energy category
-    'low_energy' ||
-    'poor_sleep' ||
-    'felt_sick' ||
-    'burned_out' ||
-    'energy' =>
-      const _ReasonDisplay(
-        icon: Icons.bedtime_outlined,
-        label: 'Energy',
-        color: AppColors.categoryHealth,
-      ),
+    'low_energy' => _energy('Low energy'),
+    'poor_sleep' => _energy('Poor sleep'),
+    'felt_sick' => _energy('Felt sick'),
+    'burned_out' => _energy('Burned out'),
+    'energy' => _energy('Energy'),
 
-    // Time category
-    'too_busy' ||
-    'unexpected_work' ||
-    'meetings' ||
-    'family' ||
-    'time' =>
-      const _ReasonDisplay(
-        icon: Icons.schedule_outlined,
-        label: 'Time',
-        color: AppColors.categoryFitness,
-      ),
+    'too_busy' => _time('Too busy'),
+    'unexpected_work' => _time('Unexpected work'),
+    'meetings' => _time('Meetings'),
+    'family' => _time('Family'),
+    'time' => _time('Time'),
 
-    // Mind category
-    'lost_motivation' ||
-    'procrastinated' ||
-    'forgot' ||
-    'felt_overwhelmed' ||
-    'couldnt_focus' ||
-    'mind' =>
-      const _ReasonDisplay(
-        icon: Icons.psychology_outlined,
-        label: 'Focus',
-        color: AppColors.categoryMind,
-      ),
+    'lost_motivation' => _mind('Lost motivation'),
+    'procrastinated' => _mind('Procrastinated'),
+    'forgot' => _mind('Forgot'),
+    'felt_overwhelmed' => _mind('Overwhelmed'),
+    'couldnt_focus' => _mind("Couldn't focus"),
+    'mind' => _mind('Focus'),
 
-    // Environment category
-    'traveling' ||
-    'weather' ||
-    'no_equipment' ||
-    'outside_home' ||
-    'environment' =>
-      const _ReasonDisplay(
-        icon: Icons.public_outlined,
-        label: 'Environment',
-        color: AppColors.categorySocial,
-      ),
+    'traveling' => _environment('Traveling'),
+    'weather' => _environment('Weather'),
+    'no_equipment' => _environment('No equipment'),
+    'outside_home' => _environment('Away from home'),
+    'environment' => _environment('Environment'),
 
-    // Personal category
-    'needed_rest' ||
-    'mental_break' ||
-    'personal_event' ||
-    'emergency' ||
-    'personal' =>
-      const _ReasonDisplay(
-        icon: Icons.favorite_outline,
-        label: 'Personal',
-        color: AppColors.categoryCreativity,
-      ),
+    'needed_rest' => _personal('Needed rest'),
+    'mental_break' => _personal('Mental break'),
+    'personal_event' => _personal('Personal event'),
+    'emergency' => _personal('Emergency'),
+    'personal' => _personal('Personal'),
 
-    // Custom / other
-    _ => const _ReasonDisplay(
+    // Custom text and anything unrecognised.
+    _ => const ReasonDisplay(
         icon: Icons.edit_outlined,
         label: 'Other',
         color: AppColors.categoryCustom,
       ),
   };
 }
+
+ReasonDisplay _energy(String label) => ReasonDisplay(
+      icon: Icons.bedtime_outlined,
+      label: label,
+      color: AppColors.categoryHealth,
+    );
+
+ReasonDisplay _time(String label) => ReasonDisplay(
+      icon: Icons.schedule_outlined,
+      label: label,
+      color: AppColors.categoryFitness,
+    );
+
+ReasonDisplay _mind(String label) => ReasonDisplay(
+      icon: Icons.psychology_outlined,
+      label: label,
+      color: AppColors.categoryMind,
+    );
+
+ReasonDisplay _environment(String label) => ReasonDisplay(
+      icon: Icons.public_outlined,
+      label: label,
+      color: AppColors.categorySocial,
+    );
+
+ReasonDisplay _personal(String label) => ReasonDisplay(
+      icon: Icons.favorite_outline,
+      label: label,
+      color: AppColors.categoryCreativity,
+    );

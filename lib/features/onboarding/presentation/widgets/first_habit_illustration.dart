@@ -43,11 +43,13 @@ class FirstHabitIllustration extends StatelessWidget {
             ),
             child: Row(
               children: [
+                // Category accent rail — coffee, not terracotta: Stitch keeps
+                // this page free of accent colour.
                 Container(
                   width: 3,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.accentTerracotta,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

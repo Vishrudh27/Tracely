@@ -11,6 +11,7 @@ import '../../features/habits/presentation/screens/habits_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/reflection/presentation/screens/reflection_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/tasks/presentation/screens/add_task_screen.dart';
 import '../../features/tasks/presentation/screens/tasks_screen.dart';
 import '../../data/services/onboarding_gate_service.dart';
@@ -19,6 +20,7 @@ import '../shell/tracely_shell.dart';
 /// Central GoRouter configuration for Tracely.
 ///
 /// Route hierarchy:
+/// /splash          → SplashScreen     (no bottom nav) — every cold start
 /// /                → ReflectionScreen (no bottom nav) — morning only, once/day
 /// /onboarding      → OnboardingScreen (no bottom nav) — first launch only, once ever
 /// /dashboard       → DashboardScreen  (inside TracelyShell)
@@ -35,6 +37,7 @@ final class AppRouter {
   // Route path constants
   // ---------------------------------------------------------------------------
 
+  static const String splash = '/splash';
   static const String reflection = '/';
   static const String onboarding = '/onboarding';
   static const String dashboard = '/dashboard';
@@ -52,8 +55,15 @@ final class AppRouter {
   // ---------------------------------------------------------------------------
 
   static final GoRouter router = GoRouter(
-    initialLocation: reflection,
+    initialLocation: splash,
     routes: [
+      // Splash — the app's first frame. Decides nothing; it hands off to
+      // '/', whose redirect owns the onboarding and ritual gates.
+      GoRoute(
+        path: splash,
+        builder: (context, state) => const SplashScreen(),
+      ),
+
       // Reflection screen — outside the shell (no bottom navigation).
       // The redirect enforces the morning gate: only shown before noon,
       // and only once per calendar day. All other opens go to /dashboard.
@@ -161,9 +171,10 @@ final class AppRouter {
         },
       ),
 
-      // Settings — full screen outside the shell, reached via the avatar
-      // button in TracelyTopBar (not a bottom-nav tab: Tasks occupies the
-      // slot Settings holds in the Stitch designs).
+      // Settings — full screen outside the shell. No Stitch mockup shows an
+      // entry point to it (no avatar/bell header anywhere, no 5th nav tab),
+      // so this route is currently unreachable from the UI. Left as-is per
+      // the user's own call — see tracely_implementation_progress.md.
       GoRoute(
         path: settings,
         pageBuilder: (context, state) => CustomTransitionPage(

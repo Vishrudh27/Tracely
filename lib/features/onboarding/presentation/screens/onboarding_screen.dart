@@ -154,19 +154,32 @@ class _OnboardingPage extends StatelessWidget {
         children: [
           Column(
             children: [
-              illustration,
-              const SizedBox(height: AppSpacing.xxxl + AppSpacing.sm),
-              Text(
-                headline,
-                textAlign: TextAlign.center,
-                style: AppTypography.textTheme.displaySmall,
+              // Stitch reserves a fixed 240px band for the art on all three
+              // pages, so the headline below starts at the same height even
+              // though each illustration is a different size.
+              SizedBox(
+                height: 240,
+                child: Center(child: illustration),
+              ),
+              const SizedBox(height: AppSpacing.huge - AppSpacing.sm),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: Text(
+                  headline,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.textTheme.displaySmall,
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
-              Text(
-                body,
-                textAlign: TextAlign.center,
-                style: AppTypography.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.textSecondary,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.textTheme.bodyLarge?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.6, // leading-relaxed
+                  ),
                 ),
               ),
             ],
@@ -192,16 +205,26 @@ class _OnboardingPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
+          // The last page has no Skip, but keeps its height so the primary
+          // button sits at the same place on all three — Stitch does this
+          // with an explicit spacer.
           SizedBox(
-            width: double.infinity,
-            height: AppSizes.buttonHeight,
+            height: AppSizes.buttonSmallHeight + AppSpacing.sm,
             child: onSkip == null
                 ? null
                 : TextButton(
                     onPressed: onSkip,
                     style: TextButton.styleFrom(
+                      // Stitch renders Skip in text-disabled, but this is a
+                      // real, tappable action, not an inert control — that
+                      // color measures 3.01:1, below WCAG AA's 4.5:1 for
+                      // normal text. textSecondary (6.34:1) reads the same
+                      // "quiet, secondary" way and passes.
                       foregroundColor: AppColors.textSecondary,
-                      textStyle: AppTypography.textTheme.labelLarge,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xxl,
+                      ),
+                      textStyle: AppTypography.textTheme.titleSmall,
                     ),
                     child: Text(AppStrings.onboardingSkip),
                   ),

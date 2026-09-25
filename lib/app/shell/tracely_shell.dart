@@ -128,12 +128,12 @@ class _TracelyShellState extends State<TracelyShell> {
               ),
               NavigationDestination(
                 icon: Icon(
-                  Icons.bar_chart_outlined,
+                  Icons.insights_outlined,
                   color: AppColors.textSecondary,
                   size: AppSizes.iconLg,
                 ),
                 selectedIcon: Icon(
-                  Icons.bar_chart_rounded,
+                  Icons.insights_rounded,
                   color: AppColors.primary,
                   size: AppSizes.iconLg,
                 ),
