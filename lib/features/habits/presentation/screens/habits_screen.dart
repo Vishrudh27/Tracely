@@ -9,8 +9,13 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
 import '../../../../core/widgets/tracely_shimmer.dart';
 import '../../../../data/database/app_database.dart';
+import '../../../../data/models/habit_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../widgets/habit_management_tile.dart';
+
+/// Habits list sort order — the "tune" icon's menu. [manual] is the DB's
+/// own `sortOrder` column (already the query's default ordering).
+enum _HabitSort { manual, nameAsc, streakDesc, newest }
 
 /// The Habits screen — manage your habits.
 ///
@@ -28,6 +33,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
   late final AnimationController _controller;
   int? _selectedCategoryId; // null = show all
   bool _showArchived = false;
+  _HabitSort _sort = _HabitSort.manual;
 
   @override
   void initState() {
@@ -49,6 +55,11 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
   Widget build(BuildContext context) {
     final habitsAsync = ref.watch(activeHabitsProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
+    // Only computed when actually needed — it's a per-habit DB query loop,
+    // not worth running on every build when sorting some other way.
+    final breakdownsAsync = _sort == _HabitSort.streakDesc
+        ? ref.watch(habitBreakdownsProvider)
+        : null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -79,7 +90,11 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                   if (filtered.isEmpty) {
                     return _buildEmptyState();
                   }
-                  return _buildHabitList(filtered, categoriesAsync.asData?.value ?? []);
+                  final sorted = _applySort(
+                    filtered,
+                    breakdownsAsync?.asData?.value,
+                  );
+                  return _buildHabitList(sorted, categoriesAsync.asData?.value ?? []);
                 },
               ),
             ),
@@ -101,63 +116,110 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(AppStrings.habitsScreenTitle, style: context.textTheme.displaySmall),
-          // Stitch's header shows this "tune" icon with no defined behavior
-          // — kept visible, inert, so it doesn't duplicate the Archived chip.
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(
+          // Stitch's header shows this "tune" icon with no defined behavior —
+          // wired to a sort menu (own addition, not from Stitch).
+          PopupMenuButton<_HabitSort>(
+            tooltip: 'Sort',
+            initialValue: _sort,
+            onSelected: (sort) => setState(() => _sort = sort),
+            color: AppColors.surface,
+            shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+            icon: const Icon(
               Icons.tune_rounded,
               size: AppSizes.iconLg,
               color: AppColors.textSecondary,
             ),
+            itemBuilder: (context) => [
+              _sortMenuItem(_HabitSort.manual, 'Default order'),
+              _sortMenuItem(_HabitSort.nameAsc, 'Name (A–Z)'),
+              _sortMenuItem(_HabitSort.streakDesc, 'Streak (high to low)'),
+              _sortMenuItem(_HabitSort.newest, 'Recently added'),
+            ],
           ),
         ],
       ),
     );
   }
 
+  PopupMenuItem<_HabitSort> _sortMenuItem(_HabitSort value, String label) {
+    final selected = _sort == value;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(
+            selected
+                ? Icons.radio_button_checked_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: AppSizes.iconSm,
+            color: selected ? AppColors.primary : AppColors.textDisabled,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(label, style: context.textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+
+  /// [breakdowns] is only non-null (and only needed) for [_HabitSort.streakDesc].
+  List<Habit> _applySort(List<Habit> habits, List<HabitBreakdown>? breakdowns) {
+    final sorted = [...habits];
+    switch (_sort) {
+      case _HabitSort.manual:
+        break; // Already sortOrder-ascending, straight from the DB query.
+      case _HabitSort.nameAsc:
+        sorted.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+      case _HabitSort.newest:
+        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case _HabitSort.streakDesc:
+        final streaks = {
+          for (final b in breakdowns ?? const <HabitBreakdown>[])
+            b.habitId: b.currentStreak,
+        };
+        sorted.sort(
+          (a, b) => (streaks[b.id] ?? 0).compareTo(streaks[a.id] ?? 0),
+        );
+    }
+    return sorted;
+  }
+
   Widget _buildCategoryFilter(List<Category> categories) {
     if (categories.isEmpty) return const SizedBox.shrink();
 
-    // +1 for "All", +1 for "Archived"
-    final itemCount = categories.length + 2;
-
-    return SizedBox(
-      height: AppSizes.chipHeight,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-        scrollDirection: Axis.horizontal,
-        itemCount: itemCount,
-        separatorBuilder: (context, index) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) {
-          if (i == 0) {
-            return _CategoryChip(
-              label: AppStrings.filterAll,
-              isSelected: !_showArchived && _selectedCategoryId == null,
-              onTap: () => setState(() {
-                _showArchived = false;
-                _selectedCategoryId = null;
-              }),
-            );
-          }
-          if (i == itemCount - 1) {
-            return _CategoryChip(
-              label: AppStrings.filterArchived,
-              isSelected: _showArchived,
-              onTap: () => setState(() => _showArchived = true),
-            );
-          }
-          final cat = categories[i - 1];
-          return _CategoryChip(
-            label: cat.name,
-            isSelected: !_showArchived && _selectedCategoryId == cat.id,
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.xs,
+      ),
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          _CategoryChip(
+            label: AppStrings.filterAll,
+            isSelected: !_showArchived && _selectedCategoryId == null,
             onTap: () => setState(() {
               _showArchived = false;
-              _selectedCategoryId = cat.id;
+              _selectedCategoryId = null;
             }),
-          );
-        },
+          ),
+          for (final cat in categories)
+            _CategoryChip(
+              label: cat.name,
+              isSelected: !_showArchived && _selectedCategoryId == cat.id,
+              onTap: () => setState(() {
+                _showArchived = false;
+                _selectedCategoryId = cat.id;
+              }),
+            ),
+          _CategoryChip(
+            label: AppStrings.filterArchived,
+            isSelected: _showArchived,
+            onTap: () => setState(() => _showArchived = true),
+          ),
+        ],
       ),
     );
   }

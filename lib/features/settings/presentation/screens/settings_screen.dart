@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../data/repositories/motion_repository.dart';
 import '../../../../data/repositories/reminder_repository.dart';
+import '../../../../data/services/backup_service.dart';
 import '../../../../data/services/database_service.dart';
 import '../../../../data/services/reminder_service.dart';
 
 /// Settings — the four Stitch sections plus a Danger Zone.
 ///
-/// Most rows here describe features that don't exist yet (themes, reduce
-/// motion, reminders, export/import, feedback). They're rendered greyed and
-/// say so when tapped rather than being dropped, so the screen matches
-/// `settings/code.html` and the roadmap stays visible. "Clear All Data" is
-/// the one real action, and is the one row Stitch doesn't have.
+/// "Theme" is read-only (Clay & Oat is the only palette that exists — no
+/// picker to build). Reduce motion, export/import, and feedback are all
+/// live. "Clear All Data" and "Import from backup" are the two rows Stitch
+/// doesn't have.
 ///
 /// Reachable via a settings gear on the Dashboard header (added 2026-09-25,
 /// not in Stitch — the profile avatar that used to open it was removed as
@@ -27,13 +29,9 @@ class SettingsScreen extends ConsumerWidget {
   /// runtime would mean adding package_info_plus for one string.
   static const _appVersion = '0.1.0';
 
-  void _notReady(BuildContext context, String feature) =>
-      _showMessage(context, '$feature — coming soon.');
-
   void _showMessage(BuildContext context, String message) {
-    // Shared by every greyed row and the reminder-time guard, so clear the
-    // queue first — otherwise tapping a few of them stacks up 20s of
-    // snackbars.
+    // Shared by every row's error/guard message, so clear the queue first —
+    // otherwise tapping a few of them stacks up 20s of snackbars.
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -118,6 +116,83 @@ class SettingsScreen extends ConsumerWidget {
         .setTime(hour: picked.hour, minute: picked.minute);
   }
 
+  Future<void> _exportJson(BuildContext context, WidgetRef ref) async {
+    try {
+      await BackupService.exportJson(ref.read(appDatabaseProvider));
+    } catch (_) {
+      if (context.mounted) _showMessage(context, 'Could not export data.');
+    }
+  }
+
+  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
+    try {
+      await BackupService.exportCsv(ref.read(appDatabaseProvider));
+    } catch (_) {
+      if (context.mounted) _showMessage(context, 'Could not export data.');
+    }
+  }
+
+  Future<void> _importBackup(BuildContext context, WidgetRef ref) async {
+    Map<String, dynamic>? data;
+    try {
+      data = await BackupService.pickBackup();
+    } catch (_) {
+      if (context.mounted) {
+        _showMessage(context, 'That file is not a Tracely backup.');
+      }
+      return;
+    }
+    if (data == null || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const Text('Replace all data?'),
+        content: const Text(
+          'This overwrites every habit, task, and completion with the '
+          "backup's contents. This cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => context.pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await ref.read(appDatabaseProvider).importData(data);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Backup restored.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    context.go(AppRouter.dashboard);
+  }
+
+  Future<void> _sendFeedback(BuildContext context) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'feedback@example.com',
+      queryParameters: {'subject': 'Tracely feedback'},
+    );
+    final launched = await launchUrl(uri);
+    if (!launched && context.mounted) {
+      _showMessage(context, 'No email app found.');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reminderAsync = ref.watch(reminderSettingsProvider);
@@ -129,6 +204,7 @@ class SettingsScreen extends ConsumerWidget {
           hour: ReminderService.defaultHour,
           minute: ReminderService.defaultMinute,
         );
+    final reduceMotion = ref.watch(reduceMotionProvider).asData?.value ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -144,18 +220,21 @@ class SettingsScreen extends ConsumerWidget {
                   const _SectionLabel('APPEARANCE', topPadding: AppSpacing.lg),
                   _SectionCard(
                     children: [
-                      _SettingsRow(
+                      const _SettingsRow(
                         label: 'Theme',
                         value: 'Clay & Oat',
-                        enabled: false,
-                        onTap: () => _notReady(context, 'Other themes'),
+                        showChevron: false,
                       ),
                       const _RowDivider(),
-                      _SettingsRow(
-                        label: 'Reduce motion',
-                        enabled: false,
-                        trailing: const _SettingsSwitch(value: false),
-                        onTap: () => _notReady(context, 'Reduce motion'),
+                      Semantics(
+                        toggled: reduceMotion,
+                        child: _SettingsRow(
+                          label: 'Reduce motion',
+                          trailing: _SettingsSwitch(value: reduceMotion),
+                          onTap: () => ref
+                              .read(reduceMotionProvider.notifier)
+                              .setEnabled(!reduceMotion),
+                        ),
                       ),
                     ],
                   ),
@@ -194,20 +273,17 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                       _SettingsRow(
                         label: 'Export as CSV',
-                        enabled: false,
-                        onTap: () => _notReady(context, 'Export'),
+                        onTap: () => _exportCsv(context, ref),
                       ),
                       const _RowDivider(),
                       _SettingsRow(
                         label: 'Export as JSON',
-                        enabled: false,
-                        onTap: () => _notReady(context, 'Export'),
+                        onTap: () => _exportJson(context, ref),
                       ),
                       const _RowDivider(),
                       _SettingsRow(
                         label: 'Import from backup',
-                        enabled: false,
-                        onTap: () => _notReady(context, 'Import'),
+                        onTap: () => _importBackup(context, ref),
                       ),
                       const _PrivacyNote(),
                     ],
@@ -223,8 +299,7 @@ class SettingsScreen extends ConsumerWidget {
                       const _RowDivider(),
                       _SettingsRow(
                         label: 'Send feedback',
-                        enabled: false,
-                        onTap: () => _notReady(context, 'Sending feedback'),
+                        onTap: () => _sendFeedback(context),
                       ),
                     ],
                   ),

@@ -171,36 +171,32 @@ class _FilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _FilterChip(
-            label: AppStrings.taskFilterToday,
-            selected: selected == TaskFilter.today,
-            onTap: () => onSelect(TaskFilter.today),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _FilterChip(
-            label: AppStrings.taskFilterUpcoming,
-            selected: selected == TaskFilter.upcoming,
-            onTap: () => onSelect(TaskFilter.upcoming),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _FilterChip(
-            label: AppStrings.taskFilterOverdue,
-            selected: selected == TaskFilter.overdue,
-            onTap: () => onSelect(TaskFilter.overdue),
-            leadingDotColor: AppColors.accentTerracotta,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _FilterChip(
-            label: AppStrings.taskFilterDone,
-            selected: selected == TaskFilter.done,
-            onTap: () => onSelect(TaskFilter.done),
-          ),
-        ],
-      ),
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        _FilterChip(
+          label: AppStrings.taskFilterToday,
+          selected: selected == TaskFilter.today,
+          onTap: () => onSelect(TaskFilter.today),
+        ),
+        _FilterChip(
+          label: AppStrings.taskFilterUpcoming,
+          selected: selected == TaskFilter.upcoming,
+          onTap: () => onSelect(TaskFilter.upcoming),
+        ),
+        _FilterChip(
+          label: AppStrings.taskFilterOverdue,
+          selected: selected == TaskFilter.overdue,
+          onTap: () => onSelect(TaskFilter.overdue),
+          leadingDotColor: AppColors.accentTerracotta,
+        ),
+        _FilterChip(
+          label: AppStrings.taskFilterDone,
+          selected: selected == TaskFilter.done,
+          onTap: () => onSelect(TaskFilter.done),
+        ),
+      ],
     );
   }
 }

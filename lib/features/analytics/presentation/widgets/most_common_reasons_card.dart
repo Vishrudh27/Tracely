@@ -93,7 +93,10 @@ class ReasonRow extends StatelessWidget {
           Icon(display.icon, size: 16, color: AppColors.textSecondary),
           const SizedBox(width: AppSpacing.sm),
           SizedBox(
-            width: 96,
+            // 96 clipped the longest labels ("Unexpected work", "Lost
+            // motivation") to "Unexpected w…" — wide enough for all of
+            // reasonDisplayInfo's labels at the default text scale.
+            width: 128,
             child: Text(
               display.label,
               style: context.textTheme.titleSmall,

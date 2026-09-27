@@ -189,6 +189,135 @@ class AppDatabase extends _$AppDatabase {
       await _seedDefaultCategories();
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Export / import (Settings → Your Data)
+  // ---------------------------------------------------------------------------
+
+  /// The marker `importData` checks for before touching the database, so an
+  /// unrelated JSON file gets rejected instead of half-imported.
+  static const backupAppMarker = 'tracely';
+
+  /// Every row in the database, keyed by table name. Each row is whatever
+  /// its drift-generated `toJson()` produces — nothing here interprets
+  /// column values by hand, so it round-trips through [importData] exactly.
+  Future<Map<String, dynamic>> exportData() async {
+    return {
+      'app': backupAppMarker,
+      'schemaVersion': schemaVersion,
+      'exportedAt': DateTime.now().toIso8601String(),
+      'tables': {
+        'categories':
+            (await select(categories).get()).map((r) => r.toJson()).toList(),
+        'habits':
+            (await select(habits).get()).map((r) => r.toJson()).toList(),
+        'habitCompletions': (await select(habitCompletions).get())
+            .map((r) => r.toJson())
+            .toList(),
+        'habitReflections': (await select(habitReflections).get())
+            .map((r) => r.toJson())
+            .toList(),
+        'dailyReflections': (await select(dailyReflections).get())
+            .map((r) => r.toJson())
+            .toList(),
+        'tasks': (await select(tasks).get()).map((r) => r.toJson()).toList(),
+      },
+    };
+  }
+
+  /// Replaces everything in the database with a prior [exportData] result.
+  /// Runs as one transaction so a bad backup can't half-apply. The caller
+  /// must already have confirmed with the user and checked
+  /// `data['app'] == backupAppMarker` — this only writes rows.
+  ///
+  /// Unlike [clearAllData], this does NOT reseed the built-in categories —
+  /// the backup's own categories (including built-ins, by their original
+  /// ids) replace them, so habits and tasks that reference those ids still
+  /// resolve.
+  Future<void> importData(Map<String, dynamic> data) async {
+    final tablesJson = data['tables'] as Map<String, dynamic>;
+    List<Map<String, dynamic>> rowsOf(String key) =>
+        (tablesJson[key] as List? ?? const [])
+            .cast<Map<String, dynamic>>();
+
+    await transaction(() async {
+      await delete(habitCompletions).go();
+      await delete(habitReflections).go();
+      await delete(dailyReflections).go();
+      await delete(tasks).go();
+      await delete(habits).go();
+      await delete(categories).go();
+
+      // Parents before children, so foreign keys resolve as each row lands.
+      for (final row in rowsOf('categories')) {
+        await into(categories).insert(
+          Category.fromJson(row),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+      for (final row in rowsOf('habits')) {
+        await into(habits).insert(
+          Habit.fromJson(row),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+      for (final row in rowsOf('habitCompletions')) {
+        await into(habitCompletions).insert(
+          HabitCompletion.fromJson(row),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+      for (final row in rowsOf('habitReflections')) {
+        await into(habitReflections).insert(
+          HabitReflection.fromJson(row),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+      for (final row in rowsOf('dailyReflections')) {
+        await into(dailyReflections).insert(
+          DailyReflection.fromJson(row),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+      for (final row in rowsOf('tasks')) {
+        await into(tasks).insert(
+          Task.fromJson(row),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
+  }
+
+  /// Habit completions as CSV, joined with the habit name — the one sheet
+  /// most likely to be useful opened outside the app. The full backup for
+  /// round-tripping is [exportData]/JSON, not this.
+  Future<String> exportCompletionsCsv() async {
+    final query = select(habitCompletions).join([
+      innerJoin(habits, habits.id.equalsExp(habitCompletions.habitId)),
+    ])
+      ..orderBy([OrderingTerm.asc(habitCompletions.completedDate)]);
+    final rows = await query.get();
+
+    final buffer = StringBuffer('Date,Habit,Completed At,Recovery Day\n');
+    for (final row in rows) {
+      final completion = row.readTable(habitCompletions);
+      final habit = row.readTable(habits);
+      buffer.writeln([
+        completion.completedDate.toIso8601String().split('T').first,
+        _csvField(habit.name),
+        completion.completedAt.toIso8601String(),
+        completion.isRecoveryDay,
+      ].join(','));
+    }
+    return buffer.toString();
+  }
+
+  static String _csvField(String value) {
+    if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
+  }
 }
 
 /// Opens the SQLite connection at the platform-appropriate path.

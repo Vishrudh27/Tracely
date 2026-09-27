@@ -95,7 +95,8 @@ class _HeatmapLegend extends StatelessWidget {
   }
 }
 
-/// Custom heatmap widget — 3 months of cells in a scrollable row-based grid.
+/// Custom heatmap widget — 3 months of cells in a static (non-scrollable)
+/// row-based grid, cell size shrunk to fit via LayoutBuilder.
 class _TracelyHeatmap extends StatelessWidget {
   const _TracelyHeatmap({
     required this.data,
@@ -147,105 +148,119 @@ class _TracelyHeatmap extends StatelessWidget {
 
     final totalCells = allDays.length;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Day labels column
-          Column(
-            children: ['M', '', 'W', '', 'F', '', 'S'].map((label) {
-              return SizedBox(
-                height: AppSizes.heatmapCell + AppSizes.heatmapSpacing,
-                child: Center(
-                  child: Text(
-                    label,
-                    style: context.textTheme.labelSmall?.copyWith(
-                      color: AppColors.textDisabled,
-                      fontSize: 9,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Shrink the cell to whatever fits the card's width so every week
+        // column always renders without needing horizontal scroll — never
+        // grow past the design's 16px on a wide screen, only shrink.
+        const dayLabelColumn = AppSizes.heatmapCell + AppSpacing.xxs;
+        final available = constraints.maxWidth - dayLabelColumn;
+        final cell = (((available - weeks.length * AppSizes.heatmapSpacing) /
+                    weeks.length)
+                .clamp(6.0, AppSizes.heatmapCell))
+            .toDouble();
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Day labels column
+            Column(
+              children: ['M', '', 'W', '', 'F', '', 'S'].map((label) {
+                return SizedBox(
+                  height: cell + AppSizes.heatmapSpacing,
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: AppColors.textDisabled,
+                        fontSize: 9,
+                      ),
                     ),
                   ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(width: AppSpacing.xxs),
+
+            // Week columns
+            ...weeks.asMap().entries.map((weekEntry) {
+              final weekIndex = weekEntry.key;
+              final week = weekEntry.value;
+
+              return Padding(
+                padding:
+                    const EdgeInsets.only(right: AppSizes.heatmapSpacing),
+                child: Column(
+                  children: List.generate(7, (dayIndex) {
+                    if (dayIndex >= week.length) {
+                      return SizedBox(
+                        width: cell,
+                        height: cell + AppSizes.heatmapSpacing,
+                      );
+                    }
+                    final day = week[dayIndex];
+                    final cellIndex = weekIndex * 7 + dayIndex;
+                    final cellProgress =
+                        totalCells == 0 ? 1.0 : cellIndex / totalCells;
+                    final isVisible = waveProgress >= cellProgress;
+
+                    final pct =
+                        data[DateTime(day.year, day.month, day.day)] ?? -1;
+                    final isFuture = day.isAfter(endDate);
+                    final isBeforeStart = day.isBefore(startDate);
+
+                    int level;
+                    if (isFuture || isBeforeStart || pct < 0) {
+                      level = -1; // empty box / no habit data
+                    } else if (pct == 0) {
+                      level = 0;
+                    } else if (pct < 0.25) {
+                      level = 1;
+                    } else if (pct < 0.50) {
+                      level = 2;
+                    } else if (pct < 0.75) {
+                      level = 3;
+                    } else {
+                      level = 4;
+                    }
+
+                    final isToday = day.year == today.year &&
+                        day.month == today.month &&
+                        day.day == today.day;
+
+                    return AnimatedOpacity(
+                      opacity: isVisible ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 80),
+                      child: Container(
+                        width: cell,
+                        height: cell,
+                        margin: const EdgeInsets.only(
+                          bottom: AppSizes.heatmapSpacing,
+                        ),
+                        decoration: BoxDecoration(
+                          // Still a visible box when there's no data, not
+                          // transparent — the grid shouldn't look like it
+                          // has holes in it.
+                          color: level < 0
+                              ? AppColors.border
+                              : AppColors.heatmap[level],
+                          borderRadius: BorderRadius.circular(3),
+                          border: isToday
+                              ? Border.all(
+                                  color: AppColors.primary,
+                                  width: 1.5,
+                                )
+                              : null,
+                        ),
+                      ),
+                    );
+                  }),
                 ),
               );
-            }).toList(),
-          ),
-          const SizedBox(width: AppSpacing.xxs),
-
-          // Week columns
-          ...weeks.asMap().entries.map((weekEntry) {
-            final weekIndex = weekEntry.key;
-            final week = weekEntry.value;
-
-            return Padding(
-              padding: const EdgeInsets.only(right: AppSizes.heatmapSpacing),
-              child: Column(
-                children: List.generate(7, (dayIndex) {
-                  if (dayIndex >= week.length) {
-                    return SizedBox(
-                      width: AppSizes.heatmapCell,
-                      height: AppSizes.heatmapCell +
-                          AppSizes.heatmapSpacing,
-                    );
-                  }
-                  final day = week[dayIndex];
-                  final cellIndex = weekIndex * 7 + dayIndex;
-                  final cellProgress =
-                      totalCells == 0 ? 1.0 : cellIndex / totalCells;
-                  final isVisible = waveProgress >= cellProgress;
-
-                  final pct =
-                      data[DateTime(day.year, day.month, day.day)] ?? -1;
-                  final isFuture = day.isAfter(endDate);
-                  final isBeforeStart = day.isBefore(startDate);
-
-                  int level;
-                  if (isFuture || isBeforeStart || pct < 0) {
-                    level = -1; // invisible / no habit data
-                  } else if (pct == 0) {
-                    level = 0;
-                  } else if (pct < 0.25) {
-                    level = 1;
-                  } else if (pct < 0.50) {
-                    level = 2;
-                  } else if (pct < 0.75) {
-                    level = 3;
-                  } else {
-                    level = 4;
-                  }
-
-                  final isToday = day.year == today.year &&
-                      day.month == today.month &&
-                      day.day == today.day;
-
-                  return AnimatedOpacity(
-                    opacity: isVisible ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 80),
-                    child: Container(
-                      width: AppSizes.heatmapCell,
-                      height: AppSizes.heatmapCell,
-                      margin: const EdgeInsets.only(
-                        bottom: AppSizes.heatmapSpacing,
-                      ),
-                      decoration: BoxDecoration(
-                        color: level < 0
-                            ? Colors.transparent
-                            : AppColors.heatmap[level],
-                        borderRadius: BorderRadius.circular(3),
-                        border: isToday
-                            ? Border.all(
-                                color: AppColors.primary,
-                                width: 1.5,
-                              )
-                            : null,
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            );
-          }),
-        ],
-      ),
+            }),
+          ],
+        );
+      },
     );
   }
 }

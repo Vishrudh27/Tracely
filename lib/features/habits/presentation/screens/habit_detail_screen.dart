@@ -494,7 +494,6 @@ class _YearHeatmap extends StatelessWidget {
 
   static const _cell = 14.0;
   static const _gap = 3.0;
-  static const _step = _cell + _gap;
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -507,13 +506,15 @@ class _YearHeatmap extends StatelessWidget {
   /// brown ramp are used; the legend still shows all five for continuity with
   /// Statistics.
   ///
-  /// Days outside the habit's schedule are blank, not misses — a Mon–Fri
-  /// habit shouldn't look like it failed every weekend.
+  /// Days outside the habit's schedule get the empty-box color, not a miss
+  /// color — a Mon–Fri habit shouldn't look like it failed every weekend.
+  /// Still a visible box (not transparent) so the grid doesn't look like it
+  /// has holes in it.
   Color _cellColor(DateTime day) {
     if (day.isAfter(today) ||
         day.isBefore(createdDay) ||
         !isScheduledOn(frequencyType, frequencyConfig, day)) {
-      return Colors.transparent;
+      return AppColors.border;
     }
     return completedDays.contains(day)
         ? AppColors.heatmap.last
@@ -522,8 +523,6 @@ class _YearHeatmap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gridWidth = weeks * _cell + (weeks - 1) * _gap;
-
     // A month label sits above the first column that starts in that month.
     final labels = <int, String>{};
     var lastMonth = -1;
@@ -540,89 +539,100 @@ class _YearHeatmap extends StatelessWidget {
     if (labels.containsKey(1) || labels.containsKey(2)) labels.remove(0);
 
     return _SectionCard(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(width: _cell + AppSpacing.sm),
-                SizedBox(
-                  width: gridWidth,
-                  height: 16,
-                  child: Stack(
-                    clipBehavior: Clip.none,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Shrink the cell to whatever fits the card's width so all 16
+          // weeks always render without needing horizontal scroll — never
+          // grow past the design's 14px on a wide screen, only shrink.
+          const dayLabelColumn = _cell + AppSpacing.sm;
+          final available = constraints.maxWidth - dayLabelColumn;
+          final cell = (((available - (weeks - 1) * _gap) / weeks)
+                  .clamp(6.0, _cell))
+              .toDouble();
+          final step = cell + _gap;
+          final gridWidth = weeks * cell + (weeks - 1) * _gap;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: dayLabelColumn),
+                  SizedBox(
+                    width: gridWidth,
+                    height: 16,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        for (final entry in labels.entries)
+                          Positioned(
+                            left: entry.key * step,
+                            child: Text(
+                              entry.value,
+                              style: context.textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.textDisabled),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
                     children: [
-                      for (final entry in labels.entries)
-                        Positioned(
-                          left: entry.key * _step,
+                      for (var r = 0; r < 7; r++) ...[
+                        if (r > 0) const SizedBox(height: _gap),
+                        SizedBox(
+                          width: _cell,
+                          height: cell,
                           child: Text(
-                            entry.value,
-                            style: context.textTheme.labelSmall
-                                ?.copyWith(color: AppColors.textDisabled),
+                            _dayLabels[r],
+                            textAlign: TextAlign.center,
+                            style: context.textTheme.labelSmall?.copyWith(
+                              color: AppColors.textDisabled,
+                              fontSize: 10,
+                              height: 1.4,
+                            ),
                           ),
                         ),
+                      ],
                     ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  children: [
-                    for (var r = 0; r < 7; r++) ...[
-                      if (r > 0) const SizedBox(height: _gap),
-                      SizedBox(
-                        width: _cell,
-                        height: _cell,
-                        child: Text(
-                          _dayLabels[r],
-                          textAlign: TextAlign.center,
-                          style: context.textTheme.labelSmall?.copyWith(
-                            color: AppColors.textDisabled,
-                            fontSize: 10,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Row(
-                  children: [
-                    for (var c = 0; c < weeks; c++) ...[
-                      if (c > 0) const SizedBox(width: _gap),
-                      Column(
-                        children: [
-                          for (var r = 0; r < 7; r++) ...[
-                            if (r > 0) const SizedBox(height: _gap),
-                            Container(
-                              width: _cell,
-                              height: _cell,
-                              decoration: BoxDecoration(
-                                color: _cellColor(start.addDays(c * 7 + r)),
-                                borderRadius: BorderRadius.circular(3.5),
+                  const SizedBox(width: AppSpacing.sm),
+                  Row(
+                    children: [
+                      for (var c = 0; c < weeks; c++) ...[
+                        if (c > 0) const SizedBox(width: _gap),
+                        Column(
+                          children: [
+                            for (var r = 0; r < 7; r++) ...[
+                              if (r > 0) const SizedBox(height: _gap),
+                              Container(
+                                width: cell,
+                                height: cell,
+                                decoration: BoxDecoration(
+                                  color: _cellColor(start.addDays(c * 7 + r)),
+                                  borderRadius: BorderRadius.circular(3.5),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
-                      ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const _HeatmapLegend(),
-          ],
-        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const _HeatmapLegend(),
+            ],
+          );
+        },
       ),
     );
   }
