@@ -208,7 +208,7 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: AppDurations.custom(700),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.forward();

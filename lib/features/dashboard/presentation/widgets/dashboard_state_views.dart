@@ -169,10 +169,16 @@ class _DashedRingState extends State<_DashedRing>
   void initState() {
     super.initState();
     // Stitch spins it once every 40s — a barely-there drift, not a spinner.
+    // AnimationController.repeat() asserts period > 0, so under reduce
+    // motion this stays static instead of spinning (same guard pattern as
+    // TracelyShimmer).
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 40),
-    )..repeat();
+    );
+    if (!AppDurations.reduceMotion) {
+      _controller.repeat();
+    }
   }
 
   @override

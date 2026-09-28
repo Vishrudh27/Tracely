@@ -51,7 +51,7 @@ class _HabitTileState extends State<HabitTile>
     );
     _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
+      duration: AppDurations.custom(120),
     );
     // Sync initial state — if already completed, start at end
     if (widget.habit.isCompletedToday) {

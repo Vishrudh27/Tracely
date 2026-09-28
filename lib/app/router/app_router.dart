@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/services/reflection_gate_service.dart';
+import '../theme/theme.dart';
 import '../../features/analytics/presentation/screens/statistics_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/habits/presentation/screens/add_habit_screen.dart';
@@ -81,7 +82,7 @@ final class AppRouter {
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
-          transitionDuration: const Duration(milliseconds: 280),
+          transitionDuration: AppDurations.custom(280),
         ),
       ),
 
@@ -94,7 +95,7 @@ final class AppRouter {
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
-          transitionDuration: const Duration(milliseconds: 280),
+          transitionDuration: AppDurations.custom(280),
         ),
       ),
 
@@ -115,7 +116,7 @@ final class AppRouter {
               child: child,
             );
           },
-          transitionDuration: const Duration(milliseconds: 320),
+          transitionDuration: AppDurations.custom(320),
         ),
       ),
 
@@ -140,7 +141,7 @@ final class AppRouter {
                 child: child,
               );
             },
-            transitionDuration: const Duration(milliseconds: 320),
+            transitionDuration: AppDurations.custom(320),
           );
         },
       ),
@@ -166,7 +167,7 @@ final class AppRouter {
                 child: child,
               );
             },
-            transitionDuration: const Duration(milliseconds: 320),
+            transitionDuration: AppDurations.custom(320),
           );
         },
       ),
@@ -191,7 +192,7 @@ final class AppRouter {
               child: child,
             );
           },
-          transitionDuration: const Duration(milliseconds: 320),
+          transitionDuration: AppDurations.custom(320),
         ),
       ),
 
@@ -212,7 +213,7 @@ final class AppRouter {
               child: child,
             );
           },
-          transitionDuration: const Duration(milliseconds: 320),
+          transitionDuration: AppDurations.custom(320),
         ),
       ),
 
@@ -224,7 +225,7 @@ final class AppRouter {
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
-          transitionDuration: const Duration(milliseconds: 280),
+          transitionDuration: AppDurations.custom(280),
         ),
         routes: [
           GoRoute(

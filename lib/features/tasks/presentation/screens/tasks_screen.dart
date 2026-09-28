@@ -13,10 +13,10 @@ import '../widgets/task_tile.dart';
 /// The to-do list. Deliberately flatter and lighter than Habits — see
 /// docs/stitch_prompt_kit.md §3.12.
 ///
-/// The "Today" filter (default) is a smart combined view: Overdue + Today +
-/// Tomorrow, grouped under headers, since overdue items always need
-/// surfacing regardless of which day the user opened the app on. The other
-/// three filters (Upcoming, Overdue, Done) are single flat lists.
+/// Each filter shows exactly what its name says, no overlap: Today = due
+/// today only, Upcoming = due tomorrow or later, Overdue = past due, Done =
+/// completed. Overdue used to also appear under Today; that double listing
+/// was the "categorization" bug fixed here.
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
 
@@ -25,15 +25,6 @@ class TasksScreen extends ConsumerStatefulWidget {
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
-  bool _searching = false;
-  final _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final tasksAsync = ref.watch(tasksProvider);
@@ -69,36 +60,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _searching
-                ? TextField(
-                    controller: _searchController,
-                    autofocus: true,
-                    onChanged: (_) => setState(() {}),
-                    style: AppTypography.textTheme.bodyLarge,
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: 'Search tasks',
-                    ),
-                  )
-                : Text(
-                    AppStrings.tasksScreenTitle,
-                    style: AppTypography.textTheme.displaySmall,
-                  ),
-          ),
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: Icon(
-                _searching ? Icons.close_rounded : Icons.search_rounded,
-                size: 22,
-                color: AppColors.textSecondary,
-              ),
-              onPressed: () => setState(() {
-                _searching = !_searching;
-                if (!_searching) _searchController.clear();
-              }),
+            child: Text(
+              AppStrings.tasksScreenTitle,
+              style: AppTypography.textTheme.displaySmall,
             ),
           ),
         ],
@@ -111,92 +75,114 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     TaskFilter filter,
   ) {
     return tasksAsync.when(
-        loading: () => const SizedBox.shrink(),
-        error: (error, stack) => TracelyEmptyState(
-          icon: Icons.error_outline,
-          title: AppStrings.errorDashboardTitle,
-          body: AppStrings.errorDashboardBody,
-        ),
-        data: (allTasks) {
-          final query = _searchController.text.trim().toLowerCase();
-          final visible = query.isEmpty
-              ? allTasks
-              : allTasks
-                  .where((t) => t.title.toLowerCase().contains(query))
-                  .toList();
-
-          if (allTasks.isEmpty) {
-            return TracelyEmptyState(
-              icon: Icons.checklist_rounded,
-              title: AppStrings.emptyTasksTitle,
-              body: AppStrings.emptyTasksBody,
-              ctaLabel: AppStrings.emptyTasksCta,
-              onCta: () => context.push(AppRouter.addTask),
-            );
-          }
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xl,
-                  vertical: AppSpacing.xs,
-                ),
-                child: _FilterRow(
-                  selected: filter,
-                  onSelect: (f) =>
-                      ref.read(taskFilterProvider.notifier).select(f),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Expanded(
-                child: _TaskListForFilter(
-                  filter: filter,
-                  tasks: visible,
-                  ref: ref,
-                ),
-              ),
-            ],
+      loading: () => const SizedBox.shrink(),
+      error: (error, stack) => TracelyEmptyState(
+        icon: Icons.error_outline,
+        title: AppStrings.errorDashboardTitle,
+        body: AppStrings.errorDashboardBody,
+      ),
+      data: (allTasks) {
+        if (allTasks.isEmpty) {
+          return TracelyEmptyState(
+            icon: Icons.checklist_rounded,
+            title: AppStrings.emptyTasksTitle,
+            body: AppStrings.emptyTasksBody,
+            ctaLabel: AppStrings.emptyTasksCta,
+            onCta: () => context.push(AppRouter.addTask),
           );
-        },
+        }
+
+        final today = DateTime.now();
+        final todayOnly = DateTime(today.year, today.month, today.day);
+        final hasOverdue = allTasks.any(
+          (t) => !t.isDone && t.groupFor(todayOnly) == TaskGroup.overdue,
+        );
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+                vertical: AppSpacing.xs,
+              ),
+              child: _FilterRow(
+                selected: filter,
+                hasOverdue: hasOverdue,
+                onSelect: (f) =>
+                    ref.read(taskFilterProvider.notifier).select(f),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: _TaskListForFilter(
+                filter: filter,
+                tasks: allTasks,
+                ref: ref,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _FilterRow extends StatelessWidget {
-  const _FilterRow({required this.selected, required this.onSelect});
+  const _FilterRow({
+    required this.selected,
+    required this.hasOverdue,
+    required this.onSelect,
+  });
 
   final TaskFilter selected;
+  final bool hasOverdue;
   final ValueChanged<TaskFilter> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        _FilterChip(
-          label: AppStrings.taskFilterToday,
-          selected: selected == TaskFilter.today,
-          onTap: () => onSelect(TaskFilter.today),
-        ),
-        _FilterChip(
-          label: AppStrings.taskFilterUpcoming,
-          selected: selected == TaskFilter.upcoming,
-          onTap: () => onSelect(TaskFilter.upcoming),
-        ),
-        _FilterChip(
-          label: AppStrings.taskFilterOverdue,
-          selected: selected == TaskFilter.overdue,
-          onTap: () => onSelect(TaskFilter.overdue),
-          leadingDotColor: AppColors.accentTerracotta,
-        ),
-        _FilterChip(
-          label: AppStrings.taskFilterDone,
-          selected: selected == TaskFilter.done,
-          onTap: () => onSelect(TaskFilter.done),
-        ),
-      ],
+    // Only 4 filters — one row, equal-width, always fits with no scroll
+    // and no wrap (unlike the 9-chip category filter on Habits).
+    return SizedBox(
+      height: AppSizes.chipHeight,
+      child: Row(
+        children: [
+          Expanded(
+            child: _FilterChip(
+              label: AppStrings.taskFilterToday,
+              selected: selected == TaskFilter.today,
+              onTap: () => onSelect(TaskFilter.today),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _FilterChip(
+              label: AppStrings.taskFilterUpcoming,
+              selected: selected == TaskFilter.upcoming,
+              onTap: () => onSelect(TaskFilter.upcoming),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _FilterChip(
+              label: AppStrings.taskFilterOverdue,
+              selected: selected == TaskFilter.overdue,
+              onTap: () => onSelect(TaskFilter.overdue),
+              // Red while tasks are overdue, green once caught up — not a
+              // static color, since this chip is a status indicator.
+              leadingDotColor:
+                  hasOverdue ? AppColors.statusOverdue : AppColors.success,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _FilterChip(
+              label: AppStrings.taskFilterDone,
+              selected: selected == TaskFilter.done,
+              onTap: () => onSelect(TaskFilter.done),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -222,35 +208,42 @@ class _FilterChip extends StatelessWidget {
         duration: AppDurations.fast,
         curve: AppCurves.standard,
         height: AppSizes.chipHeight,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(AppRadius.sm),
           boxShadow: selected ? AppShadows.sm : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (leadingDotColor != null && !selected) ...[
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: leadingDotColor,
-                  shape: BoxShape.circle,
+        // Equal-width slots on narrow screens get tight for "Upcoming" /
+        // "Overdue" — shrink to fit rather than let the row overflow.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leadingDotColor != null && !selected) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: leadingDotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                maxLines: 1,
+                style: AppTypography.textTheme.labelLarge?.copyWith(
+                  color: selected
+                      ? AppColors.textOnPrimary
+                      : AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: AppTypography.textTheme.labelLarge?.copyWith(
-                color: selected
-                    ? AppColors.textOnPrimary
-                    : AppColors.textSecondary,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -341,38 +334,6 @@ class _TaskListForFilter extends StatelessWidget {
     );
   }
 
-  Widget _group(
-    BuildContext context,
-    String header,
-    List<TaskWithCategory> items, {
-    bool overdue = false,
-  }) {
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.sm,
-            AppSpacing.xl,
-            AppSpacing.xs,
-          ),
-          child: Text(
-            header,
-            style: AppTypography.textTheme.bodySmall?.copyWith(
-              color: AppColors.textDisabled,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
-            ),
-          ),
-        ),
-        for (final task in items)
-          _taskRow(context, task, overdue: overdue, showDate: overdue),
-      ],
-    );
-  }
-
   Widget _flatList(
     BuildContext context,
     List<TaskWithCategory> items, {
@@ -395,55 +356,36 @@ class _TaskListForFilter extends StatelessWidget {
 
     switch (filter) {
       case TaskFilter.today:
-        final notDone = tasks.where((t) => !t.isDone).toList();
-        final overdue = notDone
-            .where((t) => t.groupFor(today) == TaskGroup.overdue)
+        // Today means today — overdue and tomorrow have their own tabs now,
+        // so this tab no longer folds them in (they were double-listed).
+        // Done tasks stay inline (dimmed, struck through, in place) rather
+        // than dropping, matching Dashboard's todaysTasksProvider.
+        final dueToday = tasks
+            .where((t) => t.groupFor(today) == TaskGroup.today)
             .toList();
-        // Today keeps done tasks inline (dimmed, struck through, in place)
-        // rather than dropping them — matches Stitch's "Prepare herbal
-        // infusion" example and Dashboard's todaysTasksProvider.
-        final dueToday =
-            tasks.where((t) => t.groupFor(today) == TaskGroup.today).toList();
-        final tomorrow = notDone
-            .where((t) => t.groupFor(today) == TaskGroup.tomorrow)
-            .toList();
-        if (overdue.isEmpty && dueToday.isEmpty && tomorrow.isEmpty) {
+        if (dueToday.isEmpty) {
           return const TracelyEmptyState(
             icon: Icons.check_circle_outline_rounded,
             title: 'All caught up',
-            body: 'Nothing overdue, due today, or due tomorrow.',
+            body: 'Nothing due today.',
           );
         }
-        final sections = [
-          (AppStrings.taskGroupOverdue, overdue, true),
-          (AppStrings.taskGroupToday, dueToday, false),
-          (AppStrings.taskGroupTomorrow, tomorrow, false),
-        ].where((s) => s.$2.isNotEmpty).toList();
-        return ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.huge),
-          children: [
-            for (var i = 0; i < sections.length; i++)
-              Padding(
-                padding: EdgeInsets.only(top: i == 0 ? AppSpacing.xs : AppSpacing.lg),
-                child: _group(
-                  context,
-                  sections[i].$1,
-                  sections[i].$2,
-                  overdue: sections[i].$3,
-                ),
-              ),
-          ],
-        );
+        return _flatList(context, dueToday, showDate: false);
 
       case TaskFilter.upcoming:
         final upcoming = tasks
-            .where((t) => !t.isDone && t.groupFor(today) == TaskGroup.upcoming)
+            .where(
+              (t) =>
+                  !t.isDone &&
+                  (t.groupFor(today) == TaskGroup.tomorrow ||
+                      t.groupFor(today) == TaskGroup.upcoming),
+            )
             .toList();
         if (upcoming.isEmpty) {
           return const TracelyEmptyState(
             icon: Icons.event_available_outlined,
             title: 'Nothing further out',
-            body: 'Tasks due later than tomorrow will show up here.',
+            body: 'Tasks due after today will show up here.',
           );
         }
         return _flatList(context, upcoming);

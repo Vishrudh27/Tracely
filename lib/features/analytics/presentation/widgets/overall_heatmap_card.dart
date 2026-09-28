@@ -41,10 +41,7 @@ class OverallHeatmapCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TracelyHeatmap(
-                  data: heatmapData,
-                  waveProgress: waveProgress,
-                ),
+                _TracelyHeatmap(data: heatmapData, waveProgress: waveProgress),
                 const SizedBox(height: AppSpacing.md),
                 Align(
                   alignment: Alignment.centerRight,
@@ -98,10 +95,7 @@ class _HeatmapLegend extends StatelessWidget {
 /// Custom heatmap widget — 3 months of cells in a static (non-scrollable)
 /// row-based grid, cell size shrunk to fit via LayoutBuilder.
 class _TracelyHeatmap extends StatelessWidget {
-  const _TracelyHeatmap({
-    required this.data,
-    required this.waveProgress,
-  });
+  const _TracelyHeatmap({required this.data, required this.waveProgress});
 
   final Map<DateTime, double> data;
   final double waveProgress;
@@ -148,6 +142,37 @@ class _TracelyHeatmap extends StatelessWidget {
 
     final totalCells = allDays.length;
 
+    // A month label sits above the first column that starts in that month —
+    // same approach as Habit Detail's per-habit "This year" heatmap.
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final monthLabels = <int, String>{};
+    var lastMonth = -1;
+    for (var c = 0; c < weeks.length; c++) {
+      final month = weeks[c].first.month;
+      if (month != lastMonth) {
+        monthLabels[c] = months[month - 1];
+        lastMonth = month;
+      }
+    }
+    // Column 0 always gets a label, so it collides when the grid happens to
+    // start in the last week of a month.
+    if (monthLabels.containsKey(1) || monthLabels.containsKey(2)) {
+      monthLabels.remove(0);
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Shrink the cell to whatever fits the card's width so every week
@@ -155,109 +180,146 @@ class _TracelyHeatmap extends StatelessWidget {
         // grow past the design's 16px on a wide screen, only shrink.
         const dayLabelColumn = AppSizes.heatmapCell + AppSpacing.xxs;
         final available = constraints.maxWidth - dayLabelColumn;
-        final cell = (((available - weeks.length * AppSizes.heatmapSpacing) /
-                    weeks.length)
-                .clamp(6.0, AppSizes.heatmapCell))
-            .toDouble();
+        final cell =
+            (((available - weeks.length * AppSizes.heatmapSpacing) /
+                        weeks.length)
+                    .clamp(6.0, AppSizes.heatmapCell))
+                .toDouble();
+        final step = cell + AppSizes.heatmapSpacing;
+        final gridWidth = weeks.length * step;
 
-        return Row(
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Day labels column
-            Column(
-              children: ['M', '', 'W', '', 'F', '', 'S'].map((label) {
-                return SizedBox(
-                  height: cell + AppSizes.heatmapSpacing,
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: context.textTheme.labelSmall?.copyWith(
-                        color: AppColors.textDisabled,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(width: AppSpacing.xxs),
-
-            // Week columns
-            ...weeks.asMap().entries.map((weekEntry) {
-              final weekIndex = weekEntry.key;
-              final week = weekEntry.value;
-
-              return Padding(
-                padding:
-                    const EdgeInsets.only(right: AppSizes.heatmapSpacing),
-                child: Column(
-                  children: List.generate(7, (dayIndex) {
-                    if (dayIndex >= week.length) {
-                      return SizedBox(
-                        width: cell,
-                        height: cell + AppSizes.heatmapSpacing,
-                      );
-                    }
-                    final day = week[dayIndex];
-                    final cellIndex = weekIndex * 7 + dayIndex;
-                    final cellProgress =
-                        totalCells == 0 ? 1.0 : cellIndex / totalCells;
-                    final isVisible = waveProgress >= cellProgress;
-
-                    final pct =
-                        data[DateTime(day.year, day.month, day.day)] ?? -1;
-                    final isFuture = day.isAfter(endDate);
-                    final isBeforeStart = day.isBefore(startDate);
-
-                    int level;
-                    if (isFuture || isBeforeStart || pct < 0) {
-                      level = -1; // empty box / no habit data
-                    } else if (pct == 0) {
-                      level = 0;
-                    } else if (pct < 0.25) {
-                      level = 1;
-                    } else if (pct < 0.50) {
-                      level = 2;
-                    } else if (pct < 0.75) {
-                      level = 3;
-                    } else {
-                      level = 4;
-                    }
-
-                    final isToday = day.year == today.year &&
-                        day.month == today.month &&
-                        day.day == today.day;
-
-                    return AnimatedOpacity(
-                      opacity: isVisible ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 80),
-                      child: Container(
-                        width: cell,
-                        height: cell,
-                        margin: const EdgeInsets.only(
-                          bottom: AppSizes.heatmapSpacing,
+            Row(
+              children: [
+                const SizedBox(width: dayLabelColumn),
+                SizedBox(
+                  width: gridWidth,
+                  height: 14,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (final entry in monthLabels.entries)
+                        Positioned(
+                          left: entry.key * step,
+                          child: Text(
+                            entry.value,
+                            style: context.textTheme.labelSmall?.copyWith(
+                              color: AppColors.textDisabled,
+                              fontSize: 9,
+                            ),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          // Still a visible box when there's no data, not
-                          // transparent — the grid shouldn't look like it
-                          // has holes in it.
-                          color: level < 0
-                              ? AppColors.border
-                              : AppColors.heatmap[level],
-                          borderRadius: BorderRadius.circular(3),
-                          border: isToday
-                              ? Border.all(
-                                  color: AppColors.primary,
-                                  width: 1.5,
-                                )
-                              : null,
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xxs),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Day labels column
+                Column(
+                  children: ['M', '', 'W', '', 'F', '', 'S'].map((label) {
+                    return SizedBox(
+                      height: cell + AppSizes.heatmapSpacing,
+                      child: Center(
+                        child: Text(
+                          label,
+                          style: context.textTheme.labelSmall?.copyWith(
+                            color: AppColors.textDisabled,
+                            fontSize: 9,
+                          ),
                         ),
                       ),
                     );
-                  }),
+                  }).toList(),
                 ),
-              );
-            }),
+                const SizedBox(width: AppSpacing.xxs),
+
+                // Week columns
+                ...weeks.asMap().entries.map((weekEntry) {
+                  final weekIndex = weekEntry.key;
+                  final week = weekEntry.value;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(
+                      right: AppSizes.heatmapSpacing,
+                    ),
+                    child: Column(
+                      children: List.generate(7, (dayIndex) {
+                        if (dayIndex >= week.length) {
+                          return SizedBox(
+                            width: cell,
+                            height: cell + AppSizes.heatmapSpacing,
+                          );
+                        }
+                        final day = week[dayIndex];
+                        final cellIndex = weekIndex * 7 + dayIndex;
+                        final cellProgress = totalCells == 0
+                            ? 1.0
+                            : cellIndex / totalCells;
+                        final isVisible = waveProgress >= cellProgress;
+
+                        final pct =
+                            data[DateTime(day.year, day.month, day.day)] ?? -1;
+                        final isFuture = day.isAfter(endDate);
+                        final isBeforeStart = day.isBefore(startDate);
+
+                        int level;
+                        if (isFuture || isBeforeStart || pct < 0) {
+                          level = -1; // empty box / no habit data
+                        } else if (pct == 0) {
+                          level = 0;
+                        } else if (pct < 0.25) {
+                          level = 1;
+                        } else if (pct < 0.50) {
+                          level = 2;
+                        } else if (pct < 0.75) {
+                          level = 3;
+                        } else {
+                          level = 4;
+                        }
+
+                        final isToday =
+                            day.year == today.year &&
+                            day.month == today.month &&
+                            day.day == today.day;
+
+                        return AnimatedOpacity(
+                          opacity: isVisible ? 1.0 : 0.0,
+                          duration: AppDurations.custom(80),
+                          child: Container(
+                            width: cell,
+                            height: cell,
+                            margin: const EdgeInsets.only(
+                              bottom: AppSizes.heatmapSpacing,
+                            ),
+                            decoration: BoxDecoration(
+                              // Still a visible box when there's no data, not
+                              // transparent — the grid shouldn't look like it
+                              // has holes in it.
+                              color: level < 0
+                                  ? AppColors.border
+                                  : AppColors.heatmap[level],
+                              borderRadius: BorderRadius.circular(3),
+                              border: isToday
+                                  ? Border.all(
+                                      color: AppColors.primary,
+                                      width: 1.5,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  );
+                }),
+              ],
+            ),
           ],
         );
       },

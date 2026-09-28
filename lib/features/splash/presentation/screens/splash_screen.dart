@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   /// Long enough for the animation to land and read as intentional, short
   /// enough not to be a toll booth on every launch.
-  static const _holdAfterAnimation = Duration(milliseconds: 450);
+  static Duration get _holdAfterAnimation => AppDurations.custom(450);
 
   late final AnimationController _controller;
   late final Animation<double> _emblemOpacity;
@@ -35,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1050),
+      duration: AppDurations.custom(1050),
     );
 
     // Stitch: 900ms opacity + scale 0.96 → 1 on the emblem.

@@ -49,7 +49,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: AppDurations.custom(700),
     );
     _identityOpacity = CurvedAnimation(
       parent: _controller,

@@ -56,7 +56,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 950),
+      duration: AppDurations.custom(950),
     );
     _setupAnimations();
     WidgetsBinding.instance.addPostFrameCallback((_) {

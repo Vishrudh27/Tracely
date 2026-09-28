@@ -20,6 +20,13 @@ final class AppDurations {
   static Duration _d(int milliseconds) =>
       reduceMotion ? Duration.zero : Duration(milliseconds: milliseconds);
 
+  /// One-off duration for a screen's own entrance/exit animation that's
+  /// tuned specifically for it and doesn't warrant a shared named token
+  /// below — still gated by [reduceMotion] like every other getter here.
+  /// The "never use Duration(...) directly in widgets" rule means routing
+  /// through this, not through `Duration(milliseconds: ...)`.
+  static Duration custom(int milliseconds) => _d(milliseconds);
+
   //--------------------------------------------------------------------------
   // Micro Interactions
   //--------------------------------------------------------------------------

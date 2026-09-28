@@ -51,7 +51,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: AppDurations.custom(1000),
     );
     _setupAnimations();
     WidgetsBinding.instance.addPostFrameCallback((_) {

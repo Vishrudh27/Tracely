@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_icon_registry.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
@@ -40,7 +41,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: AppDurations.custom(800),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _controller.forward());
   }
@@ -69,7 +70,10 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
           children: [
             _buildHeader(context),
             categoriesAsync.when(
-              data: (cats) => _buildCategoryFilter(cats),
+              data: (cats) => _buildCategoryFilter(
+                cats,
+                habitsAsync.asData?.value ?? const [],
+              ),
               loading: () => const SizedBox(height: AppSpacing.xl),
               error: (err, stack) => const SizedBox.shrink(),
             ),
@@ -81,11 +85,13 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                   final filtered = _showArchived
                       ? habits.where((h) => h.isArchived).toList()
                       : habits
-                          .where((h) => !h.isArchived)
-                          .where((h) =>
-                              _selectedCategoryId == null ||
-                              h.categoryId == _selectedCategoryId)
-                          .toList();
+                            .where((h) => !h.isArchived)
+                            .where(
+                              (h) =>
+                                  _selectedCategoryId == null ||
+                                  h.categoryId == _selectedCategoryId,
+                            )
+                            .toList();
 
                   if (filtered.isEmpty) {
                     return _buildEmptyState();
@@ -94,7 +100,10 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                     filtered,
                     breakdownsAsync?.asData?.value,
                   );
-                  return _buildHabitList(sorted, categoriesAsync.asData?.value ?? []);
+                  return _buildHabitList(
+                    sorted,
+                    categoriesAsync.asData?.value ?? [],
+                  );
                 },
               ),
             ),
@@ -115,7 +124,10 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(AppStrings.habitsScreenTitle, style: context.textTheme.displaySmall),
+          Text(
+            AppStrings.habitsScreenTitle,
+            style: context.textTheme.displaySmall,
+          ),
           // Stitch's header shows this "tune" icon with no defined behavior —
           // wired to a sort menu (own addition, not from Stitch).
           PopupMenuButton<_HabitSort>(
@@ -185,43 +197,142 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     return sorted;
   }
 
-  Widget _buildCategoryFilter(List<Category> categories) {
+  /// Pins "All" + the 3 categories with the most active habits as one-row
+  /// chips; everything else (plus Archived, which was never a category to
+  /// begin with) lives behind "More", opened in [_openMoreCategoriesSheet].
+  /// One fixed-height row, always — never 2-3 pages of chips, never a
+  /// crammed 9-across strip.
+  static const _pinnedCount = 3;
+
+  Widget _buildCategoryFilter(List<Category> categories, List<Habit> habits) {
     if (categories.isEmpty) return const SizedBox.shrink();
+
+    final counts = <int, int>{};
+    for (final h in habits) {
+      if (h.isArchived) continue;
+      counts[h.categoryId] = (counts[h.categoryId] ?? 0) + 1;
+    }
+    final byUsage = [...categories]
+      ..sort((a, b) {
+        final byCount = (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0);
+        return byCount != 0 ? byCount : a.sortOrder.compareTo(b.sortOrder);
+      });
+    final pinned = byUsage.take(_pinnedCount).toList();
+    final pinnedIds = pinned.map((c) => c.id).toSet();
+    final overflow = categories.where((c) => !pinnedIds.contains(c.id)).toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    // "More" reads as selected whenever the active filter isn't visible in
+    // this row — an overflow category or Archived — so the state is never
+    // silently invisible.
+    final isMoreSelected =
+        _showArchived ||
+        (_selectedCategoryId != null &&
+            !pinnedIds.contains(_selectedCategoryId));
 
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
         vertical: AppSpacing.xs,
       ),
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        children: [
-          _CategoryChip(
-            label: AppStrings.filterAll,
-            isSelected: !_showArchived && _selectedCategoryId == null,
-            onTap: () => setState(() {
-              _showArchived = false;
-              _selectedCategoryId = null;
-            }),
-          ),
-          for (final cat in categories)
-            _CategoryChip(
-              label: cat.name,
-              isSelected: !_showArchived && _selectedCategoryId == cat.id,
-              onTap: () => setState(() {
-                _showArchived = false;
-                _selectedCategoryId = cat.id;
-              }),
+      child: SizedBox(
+        height: AppSizes.chipHeight,
+        child: Row(
+          children: [
+            Expanded(
+              child: _CategoryChip(
+                label: AppStrings.filterAll,
+                isSelected: !_showArchived && _selectedCategoryId == null,
+                onTap: () => setState(() {
+                  _showArchived = false;
+                  _selectedCategoryId = null;
+                }),
+              ),
             ),
-          _CategoryChip(
-            label: AppStrings.filterArchived,
-            isSelected: _showArchived,
-            onTap: () => setState(() => _showArchived = true),
-          ),
-        ],
+            for (final cat in pinned) ...[
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: _CategoryChip(
+                  label: cat.name,
+                  isSelected: !_showArchived && _selectedCategoryId == cat.id,
+                  onTap: () => setState(() {
+                    _showArchived = false;
+                    _selectedCategoryId = cat.id;
+                  }),
+                ),
+              ),
+            ],
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: _CategoryChip(
+                label: 'More ▾',
+                isSelected: isMoreSelected,
+                onTap: () => _openMoreCategoriesSheet(overflow),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// [overflow] excludes the 3 pinned categories; Archived is always
+  /// appended since it was never part of `categories` to begin with.
+  Future<void> _openMoreCategoriesSheet(List<Category> overflow) async {
+    final picked =
+        await showModalBottomSheet<(bool isArchived, int? categoryId)>(
+          context: context,
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppRadius.bottomSheet,
+          ),
+          builder: (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: AppSpacing.sm),
+                for (final cat in overflow)
+                  ListTile(
+                    leading: Icon(
+                      AppIconRegistry.resolve(cat.emoji),
+                      color: Color(cat.colorValue),
+                    ),
+                    title: Text(cat.name, style: context.textTheme.bodyLarge),
+                    trailing: !_showArchived && _selectedCategoryId == cat.id
+                        ? const Icon(
+                            Icons.check_rounded,
+                            color: AppColors.primary,
+                          )
+                        : null,
+                    onTap: () => Navigator.pop(context, (false, cat.id)),
+                  ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.archive_outlined,
+                    color: AppColors.textSecondary,
+                  ),
+                  title: Text(
+                    AppStrings.filterArchived,
+                    style: context.textTheme.bodyLarge,
+                  ),
+                  trailing: _showArchived
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(context, (true, null)),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            ),
+          ),
+        );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _showArchived = picked.$1;
+      _selectedCategoryId = picked.$1 ? null : picked.$2;
+    });
   }
 
   Widget _buildHabitList(List<Habit> habits, List<Category> categories) {
@@ -297,16 +408,24 @@ class _CategoryChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: AppDurations.fast,
         height: AppSizes.chipHeight,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : AppColors.surfaceVariant,
           borderRadius: AppRadius.small,
         ),
-        child: Text(
-          label,
-          style: context.textTheme.titleSmall?.copyWith(
-            color: isSelected ? AppColors.textOnPrimary : AppColors.textSecondary,
+        // Equal-width slots get tight with 7+ categories — shrink the text
+        // to fit rather than clip it with an ellipsis.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: context.textTheme.titleSmall?.copyWith(
+              color: isSelected
+                  ? AppColors.textOnPrimary
+                  : AppColors.textSecondary,
+            ),
           ),
         ),
       ),

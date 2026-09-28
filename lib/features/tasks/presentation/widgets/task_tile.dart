@@ -30,11 +30,9 @@ class TaskTile extends StatelessWidget {
   /// header (the OVERDUE group, and the flat Upcoming/Overdue tabs).
   final bool showDate;
 
-  Color get _priorityColor => switch (task.priority) {
-        TaskPriority.high => AppColors.priorityHigh,
-        TaskPriority.normal => AppColors.priorityMedium,
-        TaskPriority.low => AppColors.priorityLow,
-      };
+  // Status dot, not priority — red while open, green once checked off.
+  Color get _statusColor =>
+      task.isDone ? AppColors.success : AppColors.statusOverdue;
 
   String? get _metaLine {
     String? whenPart = task.dueTime != null ? _formatTime(task.dueTime!) : null;
@@ -112,7 +110,7 @@ class TaskTile extends StatelessWidget {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(color: _priorityColor, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle),
         ),
       ],
     );

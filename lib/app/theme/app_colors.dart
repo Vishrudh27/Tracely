@@ -82,6 +82,11 @@ final class AppColors {
 
   static const Color info = Color(0xFF5C7A99); // not in the Stitch kit; desaturated to fit the warm palette
 
+  // Overdue/not-done status dots (task tile, Overdue filter chip) read as a
+  // traffic-light signal — needs to look actually red, unlike the muted
+  // `error` tone above.
+  static const Color statusOverdue = Color(0xFFC0392B);
+
   // ---------------------------------------------------------------------------
   // Borders & Divider
   // ---------------------------------------------------------------------------
