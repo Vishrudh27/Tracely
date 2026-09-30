@@ -39,7 +39,13 @@ class _TracelyShimmerState extends State<TracelyShimmer>
     _controller = AnimationController(
       vsync: this,
       duration: AppDurations.shimmer,
-    )..repeat(reverse: false);
+    );
+    // AnimationController.repeat() asserts period > 0 — with reduce motion
+    // on, AppDurations.shimmer is Duration.zero, so don't start the loop at
+    // all (a static shimmer, not an animated one, matches the setting).
+    if (!AppDurations.reduceMotion) {
+      _controller.repeat(reverse: false);
+    }
 
     _shimmerAnimation = Tween<double>(begin: -2, end: 2).animate(
       CurvedAnimation(parent: _controller, curve: AppCurves.shimmer),

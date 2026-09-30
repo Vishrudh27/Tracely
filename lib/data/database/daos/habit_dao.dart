@@ -53,6 +53,13 @@ class HabitDao extends DatabaseAccessor<AppDatabase> with _$HabitDaoMixin {
     return (select(habits)..where((h) => h.id.equals(id))).getSingleOrNull();
   }
 
+  /// Watch a single habit by ID — updates live when edited or archived
+  /// elsewhere. Emits null if the habit is deleted (never happens today,
+  /// since habits are only archived, but the type keeps callers honest).
+  Stream<Habit?> watchHabitById(int id) {
+    return (select(habits)..where((h) => h.id.equals(id))).watchSingleOrNull();
+  }
+
   /// Get all active habits as a one-shot future (for streak calculation).
   Future<List<Habit>> getActiveHabits() {
     return (select(habits)

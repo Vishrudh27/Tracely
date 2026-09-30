@@ -43,7 +43,7 @@ class $CategoriesTable extends Categories
     false,
     additionalChecks: GeneratedColumn.checkTextLength(
       minTextLength: 1,
-      maxTextLength: 10,
+      maxTextLength: 40,
     ),
     type: DriftSqlType.string,
     requiredDuringInsert: true,
@@ -244,7 +244,9 @@ class Category extends DataClass implements Insertable<Category> {
   /// Display name: "Health", "Mind", "Fitness", etc.
   final String name;
 
-  /// Emoji representing this category: "💪", "🧠", "📚", etc.
+  /// An [AppIconRegistry] key, e.g. "fitness_center", "psychology",
+  /// "menu_book" — not a literal emoji character (see that registry's doc
+  /// comment for why). Named `emoji` for historical/migration reasons.
   final String emoji;
 
   /// Color stored as integer ARGB value (e.g. 0xFF65A30D).
@@ -566,7 +568,7 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     true,
     additionalChecks: GeneratedColumn.checkTextLength(
       minTextLength: 1,
-      maxTextLength: 10,
+      maxTextLength: 40,
     ),
     type: DriftSqlType.string,
     requiredDuringInsert: false,
@@ -870,8 +872,9 @@ class Habit extends DataClass implements Insertable<Habit> {
   /// Habit display name: "Morning Walk", "Read 20 pages", etc.
   final String name;
 
-  /// Optional custom emoji override.
-  /// If null, the parent category emoji is used for display.
+  /// Optional custom icon override — an [AppIconRegistry] key, not a
+  /// literal emoji character. If null, the parent category's icon is used.
+  /// Named `emoji` for historical/migration reasons.
   final String? emoji;
 
   /// Foreign key to the Categories table.
@@ -2110,7 +2113,9 @@ class $HabitReflectionsTable extends HabitReflections
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _habitIdMeta = const VerificationMeta('habitId');
+  static const VerificationMeta _habitIdMeta = const VerificationMeta(
+    'habitId',
+  );
   @override
   late final GeneratedColumn<int> habitId = GeneratedColumn<int>(
     'habit_id',
@@ -2153,7 +2158,9 @@ class $HabitReflectionsTable extends HabitReflections
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta('createdAt');
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
   @override
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
     'created_at',
@@ -2165,13 +2172,13 @@ class $HabitReflectionsTable extends HabitReflections
   );
   @override
   List<GeneratedColumn> get $columns => [
-        id,
-        habitId,
-        missedDate,
-        reason,
-        followUpAnswer,
-        createdAt,
-      ];
+    id,
+    habitId,
+    missedDate,
+    reason,
+    followUpAnswer,
+    createdAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2268,15 +2275,28 @@ class $HabitReflectionsTable extends HabitReflections
   }
 }
 
-class HabitReflection extends DataClass
-    implements Insertable<HabitReflection> {
+class HabitReflection extends DataClass implements Insertable<HabitReflection> {
+  /// Auto-incrementing primary key.
   final int id;
-  final int habitId;
-  final DateTime missedDate;
-  final String reason;
-  final String? followUpAnswer;
-  final DateTime createdAt;
 
+  /// The habit that was missed.
+  final int habitId;
+
+  /// The date the habit was missed (midnight-normalized, local time).
+  final DateTime missedDate;
+
+  /// The selected reason from the taxonomy.
+  ///
+  /// One of: 'energy', 'time', 'forgot', 'motivation',
+  ///         'environment', 'other'
+  final String reason;
+
+  /// Optional follow-up answer for the reason-specific question.
+  /// Nullable — not all reason categories have a follow-up question.
+  final String? followUpAnswer;
+
+  /// When this reflection was created.
+  final DateTime createdAt;
   const HabitReflection({
     required this.id,
     required this.habitId,
@@ -2285,7 +2305,6 @@ class HabitReflection extends DataClass
     this.followUpAnswer,
     required this.createdAt,
   });
-
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2327,7 +2346,6 @@ class HabitReflection extends DataClass
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
-
   @override
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
@@ -2348,17 +2366,30 @@ class HabitReflection extends DataClass
     String? reason,
     Value<String?> followUpAnswer = const Value.absent(),
     DateTime? createdAt,
-  }) =>
-      HabitReflection(
-        id: id ?? this.id,
-        habitId: habitId ?? this.habitId,
-        missedDate: missedDate ?? this.missedDate,
-        reason: reason ?? this.reason,
-        followUpAnswer: followUpAnswer.present
-            ? followUpAnswer.value
-            : this.followUpAnswer,
-        createdAt: createdAt ?? this.createdAt,
-      );
+  }) => HabitReflection(
+    id: id ?? this.id,
+    habitId: habitId ?? this.habitId,
+    missedDate: missedDate ?? this.missedDate,
+    reason: reason ?? this.reason,
+    followUpAnswer: followUpAnswer.present
+        ? followUpAnswer.value
+        : this.followUpAnswer,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  HabitReflection copyWithCompanion(HabitReflectionsCompanion data) {
+    return HabitReflection(
+      id: data.id.present ? data.id.value : this.id,
+      habitId: data.habitId.present ? data.habitId.value : this.habitId,
+      missedDate: data.missedDate.present
+          ? data.missedDate.value
+          : this.missedDate,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      followUpAnswer: data.followUpAnswer.present
+          ? data.followUpAnswer.value
+          : this.followUpAnswer,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
 
   @override
   String toString() {
@@ -2374,15 +2405,8 @@ class HabitReflection extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        habitId,
-        missedDate,
-        reason,
-        followUpAnswer,
-        createdAt,
-      );
-
+  int get hashCode =>
+      Object.hash(id, habitId, missedDate, reason, followUpAnswer, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2402,7 +2426,6 @@ class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
   final Value<String> reason;
   final Value<String?> followUpAnswer;
   final Value<DateTime> createdAt;
-
   const HabitReflectionsCompanion({
     this.id = const Value.absent(),
     this.habitId = const Value.absent(),
@@ -2411,7 +2434,6 @@ class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
     this.followUpAnswer = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
-
   HabitReflectionsCompanion.insert({
     this.id = const Value.absent(),
     required int habitId,
@@ -2419,10 +2441,9 @@ class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
     required String reason,
     this.followUpAnswer = const Value.absent(),
     this.createdAt = const Value.absent(),
-  })  : habitId = Value(habitId),
-        missedDate = Value(missedDate),
-        reason = Value(reason);
-
+  }) : habitId = Value(habitId),
+       missedDate = Value(missedDate),
+       reason = Value(reason);
   static Insertable<HabitReflection> custom({
     Expression<int>? id,
     Expression<int>? habitId,
@@ -2497,6 +2518,578 @@ class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
   }
 }
 
+class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 200,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dueDateMeta = const VerificationMeta(
+    'dueDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dueDate = GeneratedColumn<DateTime>(
+    'due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dueTimeMeta = const VerificationMeta(
+    'dueTime',
+  );
+  @override
+  late final GeneratedColumn<String> dueTime = GeneratedColumn<String>(
+    'due_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<String> priority = GeneratedColumn<String>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('normal'),
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES categories (id)',
+    ),
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isDoneMeta = const VerificationMeta('isDone');
+  @override
+  late final GeneratedColumn<bool> isDone = GeneratedColumn<bool>(
+    'is_done',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_done" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    dueDate,
+    dueTime,
+    priority,
+    categoryId,
+    notes,
+    isDone,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'tasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Task> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('due_date')) {
+      context.handle(
+        _dueDateMeta,
+        dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('due_time')) {
+      context.handle(
+        _dueTimeMeta,
+        dueTime.isAcceptableOrUnknown(data['due_time']!, _dueTimeMeta),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('is_done')) {
+      context.handle(
+        _isDoneMeta,
+        isDone.isAcceptableOrUnknown(data['is_done']!, _isDoneMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Task map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Task(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      dueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}due_date'],
+      ),
+      dueTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}due_time'],
+      ),
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}priority'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}category_id'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      isDone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_done'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TasksTable createAlias(String alias) {
+    return $TasksTable(attachedDatabase, alias);
+  }
+}
+
+class Task extends DataClass implements Insertable<Task> {
+  /// Auto-incrementing primary key.
+  final int id;
+
+  /// Task title: "Finish the assignment", etc.
+  final String title;
+
+  /// Due date, date-only (time-of-day lives in [dueTime]). Null means no
+  /// due date was set — such tasks sort under "Upcoming".
+  final DateTime? dueDate;
+
+  /// Due time as "HH:mm" (e.g. "18:00"). Null means no specific time.
+  final String? dueTime;
+
+  /// 'low' | 'normal' | 'high'.
+  final String priority;
+
+  /// Optional foreign key to Categories — tasks reuse the same categories
+  /// as Habits rather than a separate task-category system.
+  final int? categoryId;
+
+  /// Optional free-text notes.
+  final String? notes;
+
+  /// Whether the task has been completed.
+  final bool isDone;
+
+  /// When this task was created.
+  final DateTime createdAt;
+  const Task({
+    required this.id,
+    required this.title,
+    this.dueDate,
+    this.dueTime,
+    required this.priority,
+    this.categoryId,
+    this.notes,
+    required this.isDone,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || dueDate != null) {
+      map['due_date'] = Variable<DateTime>(dueDate);
+    }
+    if (!nullToAbsent || dueTime != null) {
+      map['due_time'] = Variable<String>(dueTime);
+    }
+    map['priority'] = Variable<String>(priority);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<int>(categoryId);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['is_done'] = Variable<bool>(isDone);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  TasksCompanion toCompanion(bool nullToAbsent) {
+    return TasksCompanion(
+      id: Value(id),
+      title: Value(title),
+      dueDate: dueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueDate),
+      dueTime: dueTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueTime),
+      priority: Value(priority),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      isDone: Value(isDone),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Task.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Task(
+      id: serializer.fromJson<int>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      dueDate: serializer.fromJson<DateTime?>(json['dueDate']),
+      dueTime: serializer.fromJson<String?>(json['dueTime']),
+      priority: serializer.fromJson<String>(json['priority']),
+      categoryId: serializer.fromJson<int?>(json['categoryId']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      isDone: serializer.fromJson<bool>(json['isDone']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'title': serializer.toJson<String>(title),
+      'dueDate': serializer.toJson<DateTime?>(dueDate),
+      'dueTime': serializer.toJson<String?>(dueTime),
+      'priority': serializer.toJson<String>(priority),
+      'categoryId': serializer.toJson<int?>(categoryId),
+      'notes': serializer.toJson<String?>(notes),
+      'isDone': serializer.toJson<bool>(isDone),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Task copyWith({
+    int? id,
+    String? title,
+    Value<DateTime?> dueDate = const Value.absent(),
+    Value<String?> dueTime = const Value.absent(),
+    String? priority,
+    Value<int?> categoryId = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    bool? isDone,
+    DateTime? createdAt,
+  }) => Task(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    dueTime: dueTime.present ? dueTime.value : this.dueTime,
+    priority: priority ?? this.priority,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    notes: notes.present ? notes.value : this.notes,
+    isDone: isDone ?? this.isDone,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Task copyWithCompanion(TasksCompanion data) {
+    return Task(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      dueTime: data.dueTime.present ? data.dueTime.value : this.dueTime,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      isDone: data.isDone.present ? data.isDone.value : this.isDone,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Task(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('dueTime: $dueTime, ')
+          ..write('priority: $priority, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('notes: $notes, ')
+          ..write('isDone: $isDone, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    dueDate,
+    dueTime,
+    priority,
+    categoryId,
+    notes,
+    isDone,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Task &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.dueDate == this.dueDate &&
+          other.dueTime == this.dueTime &&
+          other.priority == this.priority &&
+          other.categoryId == this.categoryId &&
+          other.notes == this.notes &&
+          other.isDone == this.isDone &&
+          other.createdAt == this.createdAt);
+}
+
+class TasksCompanion extends UpdateCompanion<Task> {
+  final Value<int> id;
+  final Value<String> title;
+  final Value<DateTime?> dueDate;
+  final Value<String?> dueTime;
+  final Value<String> priority;
+  final Value<int?> categoryId;
+  final Value<String?> notes;
+  final Value<bool> isDone;
+  final Value<DateTime> createdAt;
+  const TasksCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.dueTime = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.isDone = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  TasksCompanion.insert({
+    this.id = const Value.absent(),
+    required String title,
+    this.dueDate = const Value.absent(),
+    this.dueTime = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.isDone = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : title = Value(title);
+  static Insertable<Task> custom({
+    Expression<int>? id,
+    Expression<String>? title,
+    Expression<DateTime>? dueDate,
+    Expression<String>? dueTime,
+    Expression<String>? priority,
+    Expression<int>? categoryId,
+    Expression<String>? notes,
+    Expression<bool>? isDone,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (dueDate != null) 'due_date': dueDate,
+      if (dueTime != null) 'due_time': dueTime,
+      if (priority != null) 'priority': priority,
+      if (categoryId != null) 'category_id': categoryId,
+      if (notes != null) 'notes': notes,
+      if (isDone != null) 'is_done': isDone,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  TasksCompanion copyWith({
+    Value<int>? id,
+    Value<String>? title,
+    Value<DateTime?>? dueDate,
+    Value<String?>? dueTime,
+    Value<String>? priority,
+    Value<int?>? categoryId,
+    Value<String?>? notes,
+    Value<bool>? isDone,
+    Value<DateTime>? createdAt,
+  }) {
+    return TasksCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      dueDate: dueDate ?? this.dueDate,
+      dueTime: dueTime ?? this.dueTime,
+      priority: priority ?? this.priority,
+      categoryId: categoryId ?? this.categoryId,
+      notes: notes ?? this.notes,
+      isDone: isDone ?? this.isDone,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (dueDate.present) {
+      map['due_date'] = Variable<DateTime>(dueDate.value);
+    }
+    if (dueTime.present) {
+      map['due_time'] = Variable<String>(dueTime.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<String>(priority.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (isDone.present) {
+      map['is_done'] = Variable<bool>(isDone.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TasksCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('dueTime: $dueTime, ')
+          ..write('priority: $priority, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('notes: $notes, ')
+          ..write('isDone: $isDone, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2511,10 +3104,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $HabitReflectionsTable habitReflections = $HabitReflectionsTable(
     this,
   );
+  late final $TasksTable tasks = $TasksTable(this);
   late final CategoryDao categoryDao = CategoryDao(this as AppDatabase);
   late final HabitDao habitDao = HabitDao(this as AppDatabase);
   late final CompletionDao completionDao = CompletionDao(this as AppDatabase);
   late final ReflectionDao reflectionDao = ReflectionDao(this as AppDatabase);
+  late final TaskDao taskDao = TaskDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2525,6 +3120,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     habitCompletions,
     dailyReflections,
     habitReflections,
+    tasks,
   ];
 }
 
@@ -2569,6 +3165,25 @@ final class $$CategoriesTableReferences
     ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_habitsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TasksTable, List<Task>> _tasksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tasks,
+    aliasName: 'categories__id__tasks__category_id',
+  );
+
+  $$TasksTableProcessedTableManager get tasksRefs {
+    final manager = $$TasksTableTableManager(
+      $_db,
+      $_db.tasks,
+    ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tasksRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -2640,6 +3255,31 @@ class $$CategoriesTableFilterComposer
           }) => $$HabitsTableFilterComposer(
             $db: $db,
             $table: $db.habits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> tasksRefs(
+    Expression<bool> Function($$TasksTableFilterComposer f) f,
+  ) {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableFilterComposer(
+            $db: $db,
+            $table: $db.tasks,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2761,6 +3401,31 @@ class $$CategoriesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> tasksRefs<T extends Object>(
+    Expression<T> Function($$TasksTableAnnotationComposer a) f,
+  ) {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CategoriesTableTableManager
@@ -2776,7 +3441,7 @@ class $$CategoriesTableTableManager
           $$CategoriesTableUpdateCompanionBuilder,
           (Category, $$CategoriesTableReferences),
           Category,
-          PrefetchHooks Function({bool habitsRefs})
+          PrefetchHooks Function({bool habitsRefs, bool tasksRefs})
         > {
   $$CategoriesTableTableManager(_$AppDatabase db, $CategoriesTable table)
     : super(
@@ -2837,10 +3502,13 @@ class $$CategoriesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({habitsRefs = false}) {
+          prefetchHooksCallback: ({habitsRefs = false, tasksRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (habitsRefs) db.habits],
+              explicitlyWatchedTables: [
+                if (habitsRefs) db.habits,
+                if (tasksRefs) db.tasks,
+              ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -2855,6 +3523,17 @@ class $$CategoriesTableTableManager
                           ._habitsRefsTable(db),
                       managerFromTypedResult: (p0) =>
                           $$CategoriesTableReferences(db, table, p0).habitsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.categoryId == item.id),
+                      typedResults: items,
+                    ),
+                  if (tasksRefs)
+                    await $_getPrefetchedData<Category, $CategoriesTable, Task>(
+                      currentTable: table,
+                      referencedTable: $$CategoriesTableReferences
+                          ._tasksRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$CategoriesTableReferences(db, table, p0).tasksRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
                           referencedItems.where((e) => e.categoryId == item.id),
                       typedResults: items,
@@ -2879,7 +3558,7 @@ typedef $$CategoriesTableProcessedTableManager =
       $$CategoriesTableUpdateCompanionBuilder,
       (Category, $$CategoriesTableReferences),
       Category,
-      PrefetchHooks Function({bool habitsRefs})
+      PrefetchHooks Function({bool habitsRefs, bool tasksRefs})
     >;
 typedef $$HabitsTableCreateCompanionBuilder =
     HabitsCompanion Function({
@@ -2947,6 +3626,26 @@ final class $$HabitsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _habitCompletionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$HabitReflectionsTable, List<HabitReflection>>
+  _habitReflectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.habitReflections,
+    aliasName: 'habits__id__habit_reflections__habit_id',
+  );
+
+  $$HabitReflectionsTableProcessedTableManager get habitReflectionsRefs {
+    final manager = $$HabitReflectionsTableTableManager(
+      $_db,
+      $_db.habitReflections,
+    ).filter((f) => f.habitId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _habitReflectionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -3057,6 +3756,31 @@ class $$HabitsTableFilterComposer
           }) => $$HabitCompletionsTableFilterComposer(
             $db: $db,
             $table: $db.habitCompletions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> habitReflectionsRefs(
+    Expression<bool> Function($$HabitReflectionsTableFilterComposer f) f,
+  ) {
+    final $$HabitReflectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.habitReflections,
+      getReferencedColumn: (t) => t.habitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$HabitReflectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.habitReflections,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3254,6 +3978,31 @@ class $$HabitsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> habitReflectionsRefs<T extends Object>(
+    Expression<T> Function($$HabitReflectionsTableAnnotationComposer a) f,
+  ) {
+    final $$HabitReflectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.habitReflections,
+      getReferencedColumn: (t) => t.habitId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$HabitReflectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.habitReflections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$HabitsTableTableManager
@@ -3269,7 +4018,11 @@ class $$HabitsTableTableManager
           $$HabitsTableUpdateCompanionBuilder,
           (Habit, $$HabitsTableReferences),
           Habit,
-          PrefetchHooks Function({bool categoryId, bool habitCompletionsRefs})
+          PrefetchHooks Function({
+            bool categoryId,
+            bool habitCompletionsRefs,
+            bool habitReflectionsRefs,
+          })
         > {
   $$HabitsTableTableManager(_$AppDatabase db, $HabitsTable table)
     : super(
@@ -3345,11 +4098,16 @@ class $$HabitsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({categoryId = false, habitCompletionsRefs = false}) {
+              ({
+                categoryId = false,
+                habitCompletionsRefs = false,
+                habitReflectionsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (habitCompletionsRefs) db.habitCompletions,
+                    if (habitReflectionsRefs) db.habitReflections,
                   ],
                   addJoins:
                       <
@@ -3406,6 +4164,27 @@ class $$HabitsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (habitReflectionsRefs)
+                        await $_getPrefetchedData<
+                          Habit,
+                          $HabitsTable,
+                          HabitReflection
+                        >(
+                          currentTable: table,
+                          referencedTable: $$HabitsTableReferences
+                              ._habitReflectionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$HabitsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).habitReflectionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.habitId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -3426,7 +4205,11 @@ typedef $$HabitsTableProcessedTableManager =
       $$HabitsTableUpdateCompanionBuilder,
       (Habit, $$HabitsTableReferences),
       Habit,
-      PrefetchHooks Function({bool categoryId, bool habitCompletionsRefs})
+      PrefetchHooks Function({
+        bool categoryId,
+        bool habitCompletionsRefs,
+        bool habitReflectionsRefs,
+      })
     >;
 typedef $$HabitCompletionsTableCreateCompanionBuilder =
     HabitCompletionsCompanion Function({
@@ -3979,6 +4762,733 @@ typedef $$DailyReflectionsTableProcessedTableManager =
       DailyReflection,
       PrefetchHooks Function()
     >;
+typedef $$HabitReflectionsTableCreateCompanionBuilder =
+    HabitReflectionsCompanion Function({
+      Value<int> id,
+      required int habitId,
+      required DateTime missedDate,
+      required String reason,
+      Value<String?> followUpAnswer,
+      Value<DateTime> createdAt,
+    });
+typedef $$HabitReflectionsTableUpdateCompanionBuilder =
+    HabitReflectionsCompanion Function({
+      Value<int> id,
+      Value<int> habitId,
+      Value<DateTime> missedDate,
+      Value<String> reason,
+      Value<String?> followUpAnswer,
+      Value<DateTime> createdAt,
+    });
+
+final class $$HabitReflectionsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $HabitReflectionsTable, HabitReflection> {
+  $$HabitReflectionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $HabitsTable _habitIdTable(_$AppDatabase db) =>
+      db.habits.createAlias('habit_reflections__habit_id__habits__id');
+
+  $$HabitsTableProcessedTableManager get habitId {
+    final $_column = $_itemColumn<int>('habit_id')!;
+
+    final manager = $$HabitsTableTableManager(
+      $_db,
+      $_db.habits,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_habitIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$HabitReflectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $HabitReflectionsTable> {
+  $$HabitReflectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get missedDate => $composableBuilder(
+    column: $table.missedDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get followUpAnswer => $composableBuilder(
+    column: $table.followUpAnswer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$HabitsTableFilterComposer get habitId {
+    final $$HabitsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.habitId,
+      referencedTable: $db.habits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$HabitsTableFilterComposer(
+            $db: $db,
+            $table: $db.habits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$HabitReflectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HabitReflectionsTable> {
+  $$HabitReflectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get missedDate => $composableBuilder(
+    column: $table.missedDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get followUpAnswer => $composableBuilder(
+    column: $table.followUpAnswer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$HabitsTableOrderingComposer get habitId {
+    final $$HabitsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.habitId,
+      referencedTable: $db.habits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$HabitsTableOrderingComposer(
+            $db: $db,
+            $table: $db.habits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$HabitReflectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HabitReflectionsTable> {
+  $$HabitReflectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get missedDate => $composableBuilder(
+    column: $table.missedDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<String> get followUpAnswer => $composableBuilder(
+    column: $table.followUpAnswer,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$HabitsTableAnnotationComposer get habitId {
+    final $$HabitsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.habitId,
+      referencedTable: $db.habits,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$HabitsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.habits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$HabitReflectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HabitReflectionsTable,
+          HabitReflection,
+          $$HabitReflectionsTableFilterComposer,
+          $$HabitReflectionsTableOrderingComposer,
+          $$HabitReflectionsTableAnnotationComposer,
+          $$HabitReflectionsTableCreateCompanionBuilder,
+          $$HabitReflectionsTableUpdateCompanionBuilder,
+          (HabitReflection, $$HabitReflectionsTableReferences),
+          HabitReflection,
+          PrefetchHooks Function({bool habitId})
+        > {
+  $$HabitReflectionsTableTableManager(
+    _$AppDatabase db,
+    $HabitReflectionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HabitReflectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HabitReflectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HabitReflectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> habitId = const Value.absent(),
+                Value<DateTime> missedDate = const Value.absent(),
+                Value<String> reason = const Value.absent(),
+                Value<String?> followUpAnswer = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => HabitReflectionsCompanion(
+                id: id,
+                habitId: habitId,
+                missedDate: missedDate,
+                reason: reason,
+                followUpAnswer: followUpAnswer,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int habitId,
+                required DateTime missedDate,
+                required String reason,
+                Value<String?> followUpAnswer = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => HabitReflectionsCompanion.insert(
+                id: id,
+                habitId: habitId,
+                missedDate: missedDate,
+                reason: reason,
+                followUpAnswer: followUpAnswer,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$HabitReflectionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({habitId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (habitId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.habitId,
+                                referencedTable:
+                                    $$HabitReflectionsTableReferences
+                                        ._habitIdTable(db),
+                                referencedColumn:
+                                    $$HabitReflectionsTableReferences
+                                        ._habitIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$HabitReflectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HabitReflectionsTable,
+      HabitReflection,
+      $$HabitReflectionsTableFilterComposer,
+      $$HabitReflectionsTableOrderingComposer,
+      $$HabitReflectionsTableAnnotationComposer,
+      $$HabitReflectionsTableCreateCompanionBuilder,
+      $$HabitReflectionsTableUpdateCompanionBuilder,
+      (HabitReflection, $$HabitReflectionsTableReferences),
+      HabitReflection,
+      PrefetchHooks Function({bool habitId})
+    >;
+typedef $$TasksTableCreateCompanionBuilder =
+    TasksCompanion Function({
+      Value<int> id,
+      required String title,
+      Value<DateTime?> dueDate,
+      Value<String?> dueTime,
+      Value<String> priority,
+      Value<int?> categoryId,
+      Value<String?> notes,
+      Value<bool> isDone,
+      Value<DateTime> createdAt,
+    });
+typedef $$TasksTableUpdateCompanionBuilder =
+    TasksCompanion Function({
+      Value<int> id,
+      Value<String> title,
+      Value<DateTime?> dueDate,
+      Value<String?> dueTime,
+      Value<String> priority,
+      Value<int?> categoryId,
+      Value<String?> notes,
+      Value<bool> isDone,
+      Value<DateTime> createdAt,
+    });
+
+final class $$TasksTableReferences
+    extends BaseReferences<_$AppDatabase, $TasksTable, Task> {
+  $$TasksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $CategoriesTable _categoryIdTable(_$AppDatabase db) =>
+      db.categories.createAlias('tasks__category_id__categories__id');
+
+  $$CategoriesTableProcessedTableManager? get categoryId {
+    final $_column = $_itemColumn<int>('category_id');
+    if ($_column == null) return null;
+    final manager = $$CategoriesTableTableManager(
+      $_db,
+      $_db.categories,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dueTime => $composableBuilder(
+    column: $table.dueTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDone => $composableBuilder(
+    column: $table.isDone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CategoriesTableFilterComposer get categoryId {
+    final $$CategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dueTime => $composableBuilder(
+    column: $table.dueTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDone => $composableBuilder(
+    column: $table.isDone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CategoriesTableOrderingComposer get categoryId {
+    final $$CategoriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dueDate =>
+      $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<String> get dueTime =>
+      $composableBuilder(column: $table.dueTime, builder: (column) => column);
+
+  GeneratedColumn<String> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDone =>
+      $composableBuilder(column: $table.isDone, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$CategoriesTableAnnotationComposer get categoryId {
+    final $$CategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TasksTable,
+          Task,
+          $$TasksTableFilterComposer,
+          $$TasksTableOrderingComposer,
+          $$TasksTableAnnotationComposer,
+          $$TasksTableCreateCompanionBuilder,
+          $$TasksTableUpdateCompanionBuilder,
+          (Task, $$TasksTableReferences),
+          Task,
+          PrefetchHooks Function({bool categoryId})
+        > {
+  $$TasksTableTableManager(_$AppDatabase db, $TasksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<String?> dueTime = const Value.absent(),
+                Value<String> priority = const Value.absent(),
+                Value<int?> categoryId = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<bool> isDone = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => TasksCompanion(
+                id: id,
+                title: title,
+                dueDate: dueDate,
+                dueTime: dueTime,
+                priority: priority,
+                categoryId: categoryId,
+                notes: notes,
+                isDone: isDone,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String title,
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<String?> dueTime = const Value.absent(),
+                Value<String> priority = const Value.absent(),
+                Value<int?> categoryId = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<bool> isDone = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => TasksCompanion.insert(
+                id: id,
+                title: title,
+                dueDate: dueDate,
+                dueTime: dueTime,
+                priority: priority,
+                categoryId: categoryId,
+                notes: notes,
+                isDone: isDone,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$TasksTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({categoryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (categoryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.categoryId,
+                                referencedTable: $$TasksTableReferences
+                                    ._categoryIdTable(db),
+                                referencedColumn: $$TasksTableReferences
+                                    ._categoryIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TasksTable,
+      Task,
+      $$TasksTableFilterComposer,
+      $$TasksTableOrderingComposer,
+      $$TasksTableAnnotationComposer,
+      $$TasksTableCreateCompanionBuilder,
+      $$TasksTableUpdateCompanionBuilder,
+      (Task, $$TasksTableReferences),
+      Task,
+      PrefetchHooks Function({bool categoryId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3991,4 +5501,8 @@ class $AppDatabaseManager {
       $$HabitCompletionsTableTableManager(_db, _db.habitCompletions);
   $$DailyReflectionsTableTableManager get dailyReflections =>
       $$DailyReflectionsTableTableManager(_db, _db.dailyReflections);
+  $$HabitReflectionsTableTableManager get habitReflections =>
+      $$HabitReflectionsTableTableManager(_db, _db.habitReflections);
+  $$TasksTableTableManager get tasks =>
+      $$TasksTableTableManager(_db, _db.tasks);
 }

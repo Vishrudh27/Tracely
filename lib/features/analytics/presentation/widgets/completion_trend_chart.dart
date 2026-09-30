@@ -29,6 +29,10 @@ class CompletionTrendChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDays = ref.watch(trendDaysProvider);
+    final avgPct = trendData.isEmpty
+        ? 0.0
+        : trendData.map((d) => d.percentage).reduce((a, b) => a + b) /
+            trendData.length;
 
     return Opacity(
       opacity: opacity,
@@ -37,11 +41,11 @@ class CompletionTrendChart extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: Container(
-            padding: AppSpacing.card,
+            height: 220,
+            padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: AppRadius.card,
-              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               boxShadow: AppShadows.sm,
             ),
             child: Column(
@@ -50,51 +54,18 @@ class CompletionTrendChart extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Text('Completion trend', style: context.textTheme.titleMedium),
                     Text(
-                      'Completion Trend',
-                      style: context.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                      'DAILY AVG ${(avgPct * 100).round()}%',
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: AppColors.textDisabled,
+                        letterSpacing: 0.8,
                       ),
-                    ),
-                    // Period toggle chips
-                    Row(
-                      children: [7, 30, 90].map((days) {
-                        final isSelected = selectedDays == days;
-                        return GestureDetector(
-                          onTap: () =>
-                              ref.read(trendDaysProvider.notifier).select(days),
-                          child: AnimatedContainer(
-                            duration: AppDurations.fast,
-                            margin: const EdgeInsets.only(left: AppSpacing.xs),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: AppSpacing.xxs,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primary
-                                  : AppColors.surfaceVariant,
-                              borderRadius: AppRadius.chip,
-                            ),
-                            child: Text(
-                              '${days}d',
-                              style: context.textTheme.labelSmall?.copyWith(
-                                color: isSelected
-                                    ? AppColors.textOnPrimary
-                                    : AppColors.textSecondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  height: AppSizes.chartHeight,
+                const SizedBox(height: AppSpacing.xs),
+                Expanded(
                   child: trendData.isEmpty
                       ? Center(
                           child: Text(
@@ -129,11 +100,6 @@ class CompletionTrendChart extends ConsumerWidget {
       return FlSpot(e.key.toDouble(), e.value.percentage * 100);
     }).toList();
 
-    final avgPct = trendData.isEmpty
-        ? 0.0
-        : trendData.map((d) => d.percentage).reduce((a, b) => a + b) /
-            trendData.length;
-
     return LineChart(
       LineChartData(
         minY: 0,
@@ -150,19 +116,8 @@ class CompletionTrendChart extends ConsumerWidget {
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              interval: 50,
-              reservedSize: 32,
-              getTitlesWidget: (value, meta) => Text(
-                '${value.toInt()}%',
-                style: context.textTheme.labelSmall?.copyWith(
-                  color: AppColors.textDisabled,
-                  fontSize: 10,
-                ),
-              ),
-            ),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
@@ -212,20 +167,6 @@ class CompletionTrendChart extends ConsumerWidget {
               ),
             ),
           ),
-          // Average line
-          if (avgPct > 0)
-            LineChartBarData(
-              spots: [
-                FlSpot(0, avgPct * 100),
-                FlSpot((trendData.length - 1).toDouble(), avgPct * 100),
-              ],
-              isCurved: false,
-              color: AppColors.primaryLight.withValues(alpha: 0.4),
-              barWidth: 1,
-              dashArray: [6, 4],
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: false),
-            ),
         ],
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(

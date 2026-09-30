@@ -13,9 +13,10 @@ class Habits extends Table {
   /// Habit display name: "Morning Walk", "Read 20 pages", etc.
   TextColumn get name => text().withLength(min: 1, max: 100)();
 
-  /// Optional custom emoji override.
-  /// If null, the parent category emoji is used for display.
-  TextColumn get emoji => text().nullable().withLength(min: 1, max: 10)();
+  /// Optional custom icon override — an [AppIconRegistry] key, not a
+  /// literal emoji character. If null, the parent category's icon is used.
+  /// Named `emoji` for historical/migration reasons.
+  TextColumn get emoji => text().nullable().withLength(min: 1, max: 40)();
 
   /// Foreign key to the Categories table.
   IntColumn get categoryId => integer().references(Categories, #id)();

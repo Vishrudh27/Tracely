@@ -12,103 +12,118 @@
 final class AppDurations {
   AppDurations._();
 
+  /// Set at startup from the saved Reduce Motion preference (see
+  /// `MotionService`), and again whenever Settings toggles it. When true,
+  /// every duration below collapses to zero instead of animating.
+  static bool reduceMotion = false;
+
+  static Duration _d(int milliseconds) =>
+      reduceMotion ? Duration.zero : Duration(milliseconds: milliseconds);
+
+  /// One-off duration for a screen's own entrance/exit animation that's
+  /// tuned specifically for it and doesn't warrant a shared named token
+  /// below — still gated by [reduceMotion] like every other getter here.
+  /// The "never use Duration(...) directly in widgets" rule means routing
+  /// through this, not through `Duration(milliseconds: ...)`.
+  static Duration custom(int milliseconds) => _d(milliseconds);
+
   //--------------------------------------------------------------------------
   // Micro Interactions
   //--------------------------------------------------------------------------
 
   /// Button press
-  static const Duration instant = Duration(milliseconds: 100);
+  static Duration get instant => _d(100);
 
   /// Small UI feedback
-  static const Duration micro = Duration(milliseconds: 150);
+  static Duration get micro => _d(150);
 
   //--------------------------------------------------------------------------
   // Standard Animations
   //--------------------------------------------------------------------------
 
   /// Cards
-  static const Duration fast = Duration(milliseconds: 200);
+  static Duration get fast => _d(200);
 
   /// Most widgets
-  static const Duration medium = Duration(milliseconds: 300);
+  static Duration get medium => _d(300);
 
   /// Larger widgets
-  static const Duration slow = Duration(milliseconds: 400);
+  static Duration get slow => _d(400);
 
   //--------------------------------------------------------------------------
   // Navigation
   //--------------------------------------------------------------------------
 
   /// Page transition
-  static const Duration pageTransition = Duration(milliseconds: 280);
+  static Duration get pageTransition => _d(280);
 
   /// Bottom Navigation
-  static const Duration navigation = Duration(milliseconds: 250);
+  static Duration get navigation => _d(250);
 
   /// Hero Animation
-  static const Duration hero = Duration(milliseconds: 350);
+  static Duration get hero => _d(350);
 
   //--------------------------------------------------------------------------
   // Components
   //--------------------------------------------------------------------------
 
   /// Bottom Sheet
-  static const Duration bottomSheet = Duration(milliseconds: 300);
+  static Duration get bottomSheet => _d(300);
 
   /// Dialog
-  static const Duration dialog = Duration(milliseconds: 250);
+  static Duration get dialog => _d(250);
 
   /// Snackbar
-  static const Duration snackBar = Duration(milliseconds: 250);
+  static Duration get snackBar => _d(250);
 
   /// Tooltip
-  static const Duration tooltip = Duration(milliseconds: 200);
+  static Duration get tooltip => _d(200);
 
   //--------------------------------------------------------------------------
   // Lists
   //--------------------------------------------------------------------------
 
   /// List insertion/removal
-  static const Duration listItem = Duration(milliseconds: 220);
+  static Duration get listItem => _d(220);
 
   /// Stagger delay
-  static const Duration stagger = Duration(milliseconds: 40);
+  static Duration get stagger => _d(40);
 
   //--------------------------------------------------------------------------
   // Habit Tracking
   //--------------------------------------------------------------------------
 
   /// Habit completion
-  static const Duration habitComplete = Duration(milliseconds: 220);
+  static Duration get habitComplete => _d(220);
 
   /// Streak update
-  static const Duration streak = Duration(milliseconds: 300);
+  static Duration get streak => _d(300);
 
   //--------------------------------------------------------------------------
   // Analytics
   //--------------------------------------------------------------------------
 
   /// Chart animation
-  static const Duration chart = Duration(milliseconds: 700);
+  static Duration get chart => _d(700);
 
   /// Heatmap loading
-  static const Duration heatmap = Duration(milliseconds: 600);
+  static Duration get heatmap => _d(600);
 
   /// Progress bars
-  static const Duration progress = Duration(milliseconds: 500);
+  static Duration get progress => _d(500);
 
   //--------------------------------------------------------------------------
   // Loading
   //--------------------------------------------------------------------------
 
-  static const Duration loading = Duration(milliseconds: 500);
+  static Duration get loading => _d(500);
 
-  static const Duration shimmer = Duration(milliseconds: 1200);
+  static Duration get shimmer => _d(1200);
 
   //--------------------------------------------------------------------------
   // Scroll
   //--------------------------------------------------------------------------
 
   /// AppBar collapse
-  static const Duration appBar = Duration(milliseconds: 250);
+  static Duration get appBar => _d(250);
 }

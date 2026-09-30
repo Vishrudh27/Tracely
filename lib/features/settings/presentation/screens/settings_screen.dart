@@ -1,0 +1,779 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../app/router/app_router.dart';
+import '../../../../app/theme/theme.dart';
+import '../../../../core/extensions/context_extensions.dart';
+import '../../../../data/repositories/accent_color_repository.dart';
+import '../../../../data/repositories/motion_repository.dart';
+import '../../../../data/repositories/reminder_repository.dart';
+import '../../../../data/services/accent_color_service.dart';
+import '../../../../data/services/backup_service.dart';
+import '../../../../data/services/database_service.dart';
+import '../../../../data/services/reminder_service.dart';
+
+/// Settings — the four Stitch sections plus a Danger Zone.
+///
+/// "Theme" is read-only (Clay & Oat is the only palette that exists — no
+/// picker to build). Reduce motion, export/import, and feedback are all
+/// live. "Clear All Data" and "Import from backup" are the two rows Stitch
+/// doesn't have.
+///
+/// Reachable via a settings gear on the Dashboard header (added 2026-09-25,
+/// not in Stitch — the profile avatar that used to open it was removed as
+/// un-Stitch once every tab was rebuilt exact).
+class SettingsScreen extends ConsumerWidget {
+  const SettingsScreen({super.key});
+
+  /// Kept in step with `version:` in pubspec.yaml by hand — reading it at
+  /// runtime would mean adding package_info_plus for one string.
+  static const _appVersion = '0.1.0';
+
+  void _showMessage(BuildContext context, String message) {
+    // Shared by every row's error/guard message, so clear the queue first —
+    // otherwise tapping a few of them stacks up 20s of snackbars.
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+  }
+
+  Future<void> _confirmClearData(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const Text('Clear all data?'),
+        content: const Text(
+          'This permanently deletes every habit, task, and completion. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => context.pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete everything'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    await ref.read(appDatabaseProvider).clearAllData();
+    // Clear All Data means "back to first install" — a first install has no
+    // reminder scheduled either.
+    await ReminderService.reset();
+    ref.invalidate(reminderSettingsProvider);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('All data cleared.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    context.go(AppRouter.dashboard);
+  }
+
+  Future<void> _toggleReminder(
+    BuildContext context,
+    WidgetRef ref,
+    bool value,
+  ) async {
+    final achieved =
+        await ref.read(reminderSettingsProvider.notifier).setEnabled(value);
+    // Only a denied permission looks like this: asked to turn on, and it
+    // didn't. Once Android stops showing the system prompt after repeated
+    // denials, the toggle would otherwise just silently snap back with no
+    // explanation.
+    if (value && !achieved && context.mounted) {
+      _showMessage(
+        context,
+        'Notifications are off for Tracely. Turn them on in system settings.',
+      );
+    }
+  }
+
+  Future<void> _pickReminderTime(
+    BuildContext context,
+    WidgetRef ref,
+    ReminderSettings current,
+  ) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
+    );
+    if (picked == null) return;
+    await ref
+        .read(reminderSettingsProvider.notifier)
+        .setTime(hour: picked.hour, minute: picked.minute);
+  }
+
+  Future<void> _exportJson(BuildContext context, WidgetRef ref) async {
+    try {
+      await BackupService.exportJson(ref.read(appDatabaseProvider));
+    } catch (_) {
+      if (context.mounted) _showMessage(context, 'Could not export data.');
+    }
+  }
+
+  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
+    try {
+      await BackupService.exportCsv(ref.read(appDatabaseProvider));
+    } catch (_) {
+      if (context.mounted) _showMessage(context, 'Could not export data.');
+    }
+  }
+
+  Future<void> _importBackup(BuildContext context, WidgetRef ref) async {
+    Map<String, dynamic>? data;
+    try {
+      data = await BackupService.pickBackup();
+    } catch (_) {
+      if (context.mounted) {
+        _showMessage(context, 'That file is not a Tracely backup.');
+      }
+      return;
+    }
+    if (data == null || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const Text('Replace all data?'),
+        content: const Text(
+          'This overwrites every habit, task, and completion with the '
+          "backup's contents. This cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => context.pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await ref.read(appDatabaseProvider).importData(data);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Backup restored.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    context.go(AppRouter.dashboard);
+  }
+
+  Future<void> _sendFeedback(BuildContext context) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'feedback@example.com',
+      queryParameters: {'subject': 'Tracely feedback'},
+    );
+    final launched = await launchUrl(uri);
+    if (!launched && context.mounted) {
+      _showMessage(context, 'No email app found.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reminderAsync = ref.watch(reminderSettingsProvider);
+    // Falls back to "off, 8:30 AM" for the one frame before the saved state
+    // loads — same appearance the row always had, so there's no flash.
+    final reminder = reminderAsync.asData?.value ??
+        const ReminderSettings(
+          enabled: false,
+          hour: ReminderService.defaultHour,
+          minute: ReminderService.defaultMinute,
+        );
+    final reduceMotion = ref.watch(reduceMotionProvider).asData?.value ?? false;
+    final accentPresetId =
+        ref.watch(accentColorProvider).asData?.value ?? kDefaultAccentPreset.id;
+    final accentPreset = AccentColorService.presetById(accentPresetId);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _SettingsHeader(),
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: AppSpacing.huge),
+                children: [
+                  const _SectionLabel('APPEARANCE', topPadding: AppSpacing.lg),
+                  _SectionCard(
+                    children: [
+                      _SettingsRow(
+                        label: 'Theme',
+                        value: accentPreset.label,
+                        showChevron: false,
+                      ),
+                      const _RowDivider(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.md,
+                        ),
+                        child: _AccentColorSlider(
+                          selectedId: accentPresetId,
+                          onPreview: (id) =>
+                              ref.read(accentColorProvider.notifier).preview(id),
+                          onCommit: (id) =>
+                              ref.read(accentColorProvider.notifier).commit(id),
+                        ),
+                      ),
+                      const _RowDivider(),
+                      Semantics(
+                        toggled: reduceMotion,
+                        child: _SettingsRow(
+                          label: 'Reduce motion',
+                          trailing: _SettingsSwitch(value: reduceMotion),
+                          onTap: () => ref
+                              .read(reduceMotionProvider.notifier)
+                              .setEnabled(!reduceMotion),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const _SectionLabel('REMINDERS'),
+                  _SectionCard(
+                    children: [
+                      Semantics(
+                        toggled: reminder.enabled,
+                        child: _SettingsRow(
+                          label: 'Daily reminder',
+                          trailing: _SettingsSwitch(value: reminder.enabled),
+                          // The whole 56px row is the tap target, not just
+                          // the 44×24 switch graphic — that alone is under
+                          // Android's 48dp minimum.
+                          onTap: () => _toggleReminder(
+                            context,
+                            ref,
+                            !reminder.enabled,
+                          ),
+                        ),
+                      ),
+                      const _RowDivider(),
+                      _SettingsRow(
+                        label: 'Reminder time',
+                        value: reminder.timeLabel,
+                        enabled: reminder.enabled,
+                        onTap: reminder.enabled
+                            ? () => _pickReminderTime(context, ref, reminder)
+                            : () => _showMessage(
+                                context, 'Turn the reminder on first.'),
+                      ),
+                    ],
+                  ),
+                  const _SectionLabel('YOUR DATA'),
+                  _SectionCard(
+                    children: [
+                      _SettingsRow(
+                        label: 'Export as CSV',
+                        onTap: () => _exportCsv(context, ref),
+                      ),
+                      const _RowDivider(),
+                      _SettingsRow(
+                        label: 'Export as JSON',
+                        onTap: () => _exportJson(context, ref),
+                      ),
+                      const _RowDivider(),
+                      _SettingsRow(
+                        label: 'Import from backup',
+                        onTap: () => _importBackup(context, ref),
+                      ),
+                      const _PrivacyNote(),
+                    ],
+                  ),
+                  const _SectionLabel('ABOUT'),
+                  _SectionCard(
+                    children: [
+                      const _SettingsRow(
+                        label: 'Version',
+                        value: _appVersion,
+                        showChevron: false,
+                      ),
+                      const _RowDivider(),
+                      _SettingsRow(
+                        label: 'Send feedback',
+                        onTap: () => _sendFeedback(context),
+                      ),
+                    ],
+                  ),
+
+                  // Not in Stitch — the one action on this screen that does
+                  // something, so it gets its own section rather than hiding
+                  // among rows that don't.
+                  const _SectionLabel('DANGER ZONE'),
+                  _SectionCard(
+                    children: [
+                      _SettingsRow(
+                        label: 'Clear All Data',
+                        labelColor: AppColors.error,
+                        showChevron: false,
+                        onTap: () => _confirmClearData(context, ref),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: AppSpacing.xxxl),
+                  const _Colophon(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: AppSizes.appBarHeight,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.arrow_back_rounded),
+            iconSize: 22,
+            color: AppColors.textPrimary,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Text('Settings', style: context.textTheme.displaySmall),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section chrome
+// ---------------------------------------------------------------------------
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label, {this.topPadding = AppSpacing.xxl});
+
+  final String label;
+
+  /// Stitch gives the first section less headroom than the ones after it.
+  final double topPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        topPadding,
+        AppSpacing.xl,
+        AppSpacing.sm,
+      ),
+      child: Text(
+        label,
+        style: context.textTheme.bodySmall?.copyWith(
+          color: AppColors.textDisabled,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.96, // 0.08em at 12px
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.card,
+          boxShadow: AppShadows.sm,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: children),
+      ),
+    );
+  }
+}
+
+/// Hairline between rows, inset from the left the way Stitch indents it.
+class _RowDivider extends StatelessWidget {
+  const _RowDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(left: AppSpacing.lg),
+      child: Divider(height: 1, thickness: 1, color: AppColors.border),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rows
+// ---------------------------------------------------------------------------
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.label,
+    this.value,
+    this.trailing,
+    this.onTap,
+    this.enabled = true,
+    this.showChevron = true,
+    this.labelColor,
+  });
+
+  final String label;
+
+  /// Right-aligned current value, e.g. "Clay & Oat" or "8:30 AM".
+  final String? value;
+
+  /// Replaces value + chevron entirely — used by the toggles.
+  final Widget? trailing;
+
+  final VoidCallback? onTap;
+
+  /// False greys the row out: the feature behind it doesn't exist yet, and
+  /// tapping says so instead of doing nothing.
+  final bool enabled;
+
+  final bool showChevron;
+  final Color? labelColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = labelColor ??
+        (enabled ? AppColors.textPrimary : AppColors.textDisabled);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: context.textTheme.bodyLarge?.copyWith(color: color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (trailing != null)
+                trailing!
+              else ...[
+                if (value != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.xs),
+                    child: Text(
+                      value!,
+                      // A greyed row's value must grey too — "8:30 AM" at
+                      // full contrast reads like a live reminder.
+                      style: context.textTheme.bodyMedium?.copyWith(
+                        color: enabled
+                            ? AppColors.textSecondary
+                            : AppColors.textDisabled,
+                      ),
+                    ),
+                  ),
+                if (showChevron)
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: AppSizes.iconMd,
+                    color: AppColors.textDisabled,
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stitch's pill switch — purely decorative. The tap target is the row it
+/// sits in (56px, full width), not this 44×24 graphic on its own, which is
+/// under Android's 48dp minimum touch size.
+class _SettingsSwitch extends StatelessWidget {
+  const _SettingsSwitch({required this.value});
+
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 24,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: value ? AppColors.primary : AppColors.border,
+        borderRadius: AppRadius.fab,
+      ),
+      child: AnimatedAlign(
+        duration: AppDurations.fast,
+        curve: AppCurves.standard,
+        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 3,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Accent-color picker — one pill-shaped track banded into
+/// [kAccentPresets]' colors, with a draggable thumb that snaps to the
+/// nearest band. Replaces an earlier row of square swatches: same 8
+/// choices, a third of the height, and no wrapped second row.
+class _AccentColorSlider extends StatefulWidget {
+  const _AccentColorSlider({
+    required this.selectedId,
+    required this.onPreview,
+    required this.onCommit,
+  });
+
+  final String selectedId;
+
+  /// Called on every band the thumb crosses while dragging — cheap
+  /// (in-memory only), so the whole app's colors follow the thumb live.
+  final ValueChanged<String> onPreview;
+
+  /// Called once, when the drag (or tap) ends — this is the one call that
+  /// hits disk.
+  final ValueChanged<String> onCommit;
+
+  @override
+  State<_AccentColorSlider> createState() => _AccentColorSliderState();
+}
+
+class _AccentColorSliderState extends State<_AccentColorSlider> {
+  /// Drag/tap hit area — kept well above Android's 48dp-equivalent min
+  /// even though the visible rail is much thinner.
+  static const _touchHeight = 44.0;
+
+  /// The actual pill — thin, like a real slider rail, not a strip of
+  /// full-height color blocks.
+  static const _railHeight = 8.0;
+
+  static const _thumbSize = 28.0;
+
+  /// Only set while a drag gesture is live.
+  int? _dragIndex;
+
+  /// Raw finger x while dragging — the thumb follows this continuously;
+  /// [_dragIndex] (snapped to a band) only decides which color previews.
+  /// Without this split the thumb itself was jumping in 8 discrete steps
+  /// instead of tracking the finger.
+  double? _dragX;
+
+  int get _committedIndex {
+    final i = kAccentPresets.indexWhere((p) => p.id == widget.selectedId);
+    return i == -1 ? 0 : i;
+  }
+
+  int get _displayIndex => _dragIndex ?? _committedIndex;
+
+  int _indexAt(double dx, double trackWidth) {
+    final segment = trackWidth / kAccentPresets.length;
+    return (dx / segment).floor().clamp(0, kAccentPresets.length - 1);
+  }
+
+  void _commit(int index) {
+    final id = kAccentPresets[index].id;
+    widget.onCommit(id);
+    setState(() {
+      _dragIndex = null;
+      _dragX = null;
+    });
+  }
+
+  /// Smooth blend through every preset in order — a rail, not a row of
+  /// hard-edged blocks.
+  static final List<Color> _railColors = [
+    for (final preset in kAccentPresets) preset.base,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trackWidth = constraints.maxWidth;
+        final segment = trackWidth / kAccentPresets.length;
+        // While dragging, follow the raw finger x (clamped) so the thumb
+        // moves 1:1 instead of hopping between 8 snap points. At rest, sit
+        // centered on the committed band.
+        final thumbLeft = _dragX != null
+            ? (_dragX! - _thumbSize / 2).clamp(0.0, trackWidth - _thumbSize)
+            : (segment * _displayIndex + segment / 2 - _thumbSize / 2)
+                .clamp(0.0, trackWidth - _thumbSize);
+
+        return GestureDetector(
+          onTapUp: (d) => _commit(_indexAt(d.localPosition.dx, trackWidth)),
+          onPanUpdate: (d) {
+            final dx = d.localPosition.dx.clamp(0.0, trackWidth);
+            final index = _indexAt(dx, trackWidth);
+            setState(() => _dragX = dx);
+            if (index != _dragIndex) {
+              _dragIndex = index;
+              widget.onPreview(kAccentPresets[index].id);
+            }
+          },
+          onPanEnd: (_) => _commit(_dragIndex ?? _committedIndex),
+          onPanCancel: () => setState(() {
+            _dragIndex = null;
+            _dragX = null;
+          }),
+          child: SizedBox(
+            width: double.infinity,
+            height: _touchHeight,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: (_touchHeight - _railHeight) / 2,
+                  child: Container(
+                    height: _railHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(_railHeight / 2),
+                      gradient: LinearGradient(colors: _railColors),
+                    ),
+                  ),
+                ),
+                AnimatedPositioned(
+                  duration: _dragX != null ? Duration.zero : AppDurations.fast,
+                  curve: AppCurves.standard,
+                  left: thumbLeft,
+                  top: (_touchHeight - _thumbSize) / 2,
+                  child: Semantics(
+                    label: 'Accent color: ${kAccentPresets[_displayIndex].label}',
+                    slider: true,
+                    child: Container(
+                      width: _thumbSize,
+                      height: _thumbSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: kAccentPresets[_displayIndex].base,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: AppShadows.sm,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PrivacyNote extends StatelessWidget {
+  const _PrivacyNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: AppSpacing.xxs),
+            child: Icon(
+              Icons.lock_outline_rounded,
+              size: 18,
+              color: AppColors.success,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Everything stays on this device. '
+              'Tracely has no account and no servers.',
+              style: context.textTheme.bodySmall?.copyWith(height: 1.6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Colophon extends StatelessWidget {
+  const _Colophon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        'HANDCRAFTED OFFLINE COMPANION',
+        style: context.textTheme.labelSmall?.copyWith(
+          color: AppColors.textDisabled,
+          letterSpacing: 1.5,
+        ),
+      ),
+    );
+  }
+}

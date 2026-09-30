@@ -42,7 +42,7 @@ class _ReflectionScreenState extends ConsumerState<ReflectionScreen>
       vsync: this,
       // 2000ms — slightly faster than original 2500ms, still intentionally slow.
       // The deliberate pace IS the feature: it's a designed emotional reset.
-      duration: const Duration(milliseconds: 2000),
+      duration: AppDurations.custom(2000),
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {

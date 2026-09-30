@@ -22,11 +22,13 @@ class DashboardMotivationFooter extends StatelessWidget {
     final quote = GreetingUtils.motivationFooter(AppStrings.motivationFooter);
 
     return Opacity(
-      opacity: opacity * 0.65, // max 65% opacity — stays ethereal
+      opacity: opacity,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.massive,
-          vertical: AppSpacing.massive,
+        padding: const EdgeInsets.only(
+          left: AppSpacing.xl,
+          right: AppSpacing.xl,
+          top: AppSpacing.huge,
+          bottom: AppSpacing.massive,
         ),
         child: Text(
           quote,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_tracker/core/extensions/date_extensions.dart';
 import 'package:habit_tracker/core/utils/streak_calculator.dart';
 
 void main() {
@@ -126,6 +127,52 @@ void main() {
         DateTime(2025, 1, 3),
       ];
       expect(StreakCalculator.longestStreak(dates), 3);
+    });
+  });
+
+  group('StreakCalculator with isScheduled (rest days don\'t break it)', () {
+    // Only Mon–Fri (ISO weekday 1-5) is scheduled.
+    bool weekdaysOnly(DateTime d) => d.weekday <= 5;
+
+    test('an unscheduled rest day between the last completion and today '
+        'does not break currentStreak, though it would by default', () {
+      // Last completion was 2 days ago — normally dead (see the "returns 0
+      // when last completion was 2+ days ago" test above). day(1), the day
+      // in between, is deterministically treated as a rest day here, so this
+      // doesn't depend on what the real calendar day happens to be.
+      final dates = [day(3), day(2)];
+      expect(StreakCalculator.currentStreak(dates), 0); // unchanged default
+
+      final streak = StreakCalculator.currentStreak(
+        dates,
+        isScheduled: (d) => !d.isSameDay(day(1)),
+      );
+      expect(streak, 2);
+    });
+
+    test('longestStreak treats a weekend gap as continuous', () {
+      // Fri Jan 2, then Mon Jan 5 2026 — Sat/Sun between are rest days.
+      final dates = [DateTime(2026, 1, 2), DateTime(2026, 1, 5)];
+      expect(
+        StreakCalculator.longestStreak(dates, isScheduled: weekdaysOnly),
+        2,
+      );
+      // Without schedule awareness, the same gap breaks the streak.
+      expect(StreakCalculator.longestStreak(dates), 1);
+    });
+
+    test('a missed scheduled weekday still breaks the streak', () {
+      // Mon, (missed Tue), Wed — Tue was scheduled and skipped.
+      final dates = [DateTime(2026, 1, 5), DateTime(2026, 1, 7)];
+      expect(
+        StreakCalculator.longestStreak(dates, isScheduled: weekdaysOnly),
+        1,
+      );
+    });
+
+    test('default (no isScheduled) behaves exactly as before', () {
+      final dates = [DateTime(2026, 1, 1), DateTime(2026, 1, 2)];
+      expect(StreakCalculator.longestStreak(dates), 2);
     });
   });
 

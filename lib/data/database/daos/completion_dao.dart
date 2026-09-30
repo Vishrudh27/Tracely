@@ -89,6 +89,15 @@ class CompletionDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
+  /// Watch every completion for a single habit, oldest first — powers the
+  /// Habit Detail screen's streak hero and monthly grid.
+  Stream<List<HabitCompletion>> watchCompletionsForHabit(int habitId) {
+    return (select(habitCompletions)
+          ..where((c) => c.habitId.equals(habitId))
+          ..orderBy([(c) => OrderingTerm.asc(c.completedDate)]))
+        .watch();
+  }
+
   // ---------------------------------------------------------------------------
   // Statistics reads
   // ---------------------------------------------------------------------------

@@ -12,7 +12,8 @@ final class AppStrings {
   // ---------------------------------------------------------------------------
 
   static const String appName = 'Tracely';
-  static const String appTagline = 'Build habits. Build yourself.';
+  /// Stitch's splash wordmark line — the brand promise, not a slogan.
+  static const String appTagline = 'Know why, not just what';
 
   // ---------------------------------------------------------------------------
   // Greetings (time-based, pulled in by GreetingUtils)
@@ -23,21 +24,46 @@ final class AppStrings {
   static const String greetingEvening = 'Good Evening';
 
   // ---------------------------------------------------------------------------
+  // Onboarding
+  // ---------------------------------------------------------------------------
+
+  static const String onboarding1Headline = 'Every tracker shows what you missed.';
+  static const String onboarding1Body =
+      'None of them show why. That blank space is the whole reason Tracely exists.';
+
+  static const String onboarding2Headline =
+      'When you miss a day, we ask one gentle question.';
+  static const String onboarding2Body =
+      'One tap. Always skippable. Never a guilt trip.';
+
+  static const String onboarding3Headline = 'Start with one habit.';
+  static const String onboarding3Body =
+      'Not ten. One you could do tomorrow even on a bad day.';
+
+  static const String onboardingNext = 'Next';
+  static const String onboardingSkip = 'Skip';
+  static const String onboardingCreateFirstHabit = 'Create my first habit';
+
+  // ---------------------------------------------------------------------------
   // Dashboard
   // ---------------------------------------------------------------------------
 
   static const String dashboardTitle = 'Today';
   static const String sectionTodaysHabits = "Today's Habits";
+  static const String sectionTodaysTasks = "Today's Tasks";
   static const String sectionWeeklyProgress = 'This Week';
   static const String sectionRecentActivity = 'Recent Activity';
 
-  // Progress card copy
-  static const String progressFreshStart = 'A fresh start — take it one at a time.';
-  static const String progressAllDone = 'All done — beautifully consistent.';
-  static const String progressKeepGoing = 'Keep going — you\'re doing great.';
+  // Progress card copy — headline + subtitle pair, keyed off habits remaining
+  static const String progressAllDoneHeadline = 'All completed';
+  static const String progressAllDoneSubtitle = 'Quiet rest ahead';
+  static const String progressAlmostHeadline = 'Almost there';
+  static const String progressAlmostSubtitle = '1 habit left';
+  static const String progressNormalHeadline = 'Nicely paced';
 
   // Motivation footer — rotated daily
   static const List<String> motivationFooter = [
+    'Progress is the sum of small wins.',
     'Small steps, every day.',
     'Consistency over perfection.',
     'Show up — the rest follows.',
@@ -56,6 +82,18 @@ final class AppStrings {
   static const String emptyDashboardBody =
       'Add your first habit and start building.';
   static const String emptyDashboardCta = 'Add First Habit';
+  static const String emptyDashboardSubtitle = 'Fresh start ahead.';
+  // Quote reuses motivationFooter[0] — see DashboardEmptyView.
+  static const String emptyDashboardTipTitle = 'A quiet ritual';
+  static const String emptyDashboardTipBody =
+      'Start small. Even two minutes of reading or a morning glass of '
+      'water counts.';
+
+  // Rest day — habits exist but none are scheduled today (not in Stitch).
+  static const String restDayGreetingSubtitle = 'Enjoy the rest.';
+  static const String restDayTitle = 'Nothing due today';
+  static const String restDayBody =
+      "Your habits aren't scheduled today. Take the day off.";
 
   static const String emptyHabitsTitle = 'A blank page is full of possibility';
   static const String emptyHabitsBody =
@@ -85,14 +123,14 @@ final class AppStrings {
   static const String filterArchived = 'Archived';
 
   // Add / Edit habit form
-  static const String habitNameHint = 'What do you want to build?';
-  static const String habitNameLabel = 'Habit name';
+  static const String habitNameHint = 'Morning walk';
+  static const String habitNameLabel = 'Name';
   static const String categoryLabel = 'Category';
   static const String frequencyLabel = 'Frequency';
   static const String reminderLabel = 'Gentle reminder';
-  static const String emojiLabel = 'Pick an emoji';
-  static const String saveHabitButton = 'Start Building';
-  static const String updateHabitButton = 'Save Changes';
+  static const String iconLabel = 'Icon';
+  static const String saveHabitButton = 'Save';
+  static const String updateHabitButton = 'Save';
   static const String archiveHabitButton = 'Archive this habit';
 
   static const String archiveConfirmTitle = 'Archive this habit?';
@@ -127,6 +165,39 @@ final class AppStrings {
   ];
 
   // ---------------------------------------------------------------------------
+  // Tasks
+  // ---------------------------------------------------------------------------
+
+  static const String tasksScreenTitle = 'Tasks';
+  static const String taskFilterToday = 'Today';
+  static const String taskFilterUpcoming = 'Upcoming';
+  static const String taskFilterOverdue = 'Overdue';
+  static const String taskFilterDone = 'Done';
+
+  static const String taskGroupOverdue = 'OVERDUE';
+  static const String taskGroupToday = 'TODAY';
+  static const String taskGroupTomorrow = 'TOMORROW';
+
+  static const String emptyTasksTitle = 'Nothing on your plate';
+  static const String emptyTasksBody =
+      'Add a task for the things that only need doing once.';
+  static const String emptyTasksCta = 'Add a Task';
+
+  // Add Task form
+  static const String addTaskTitle = 'New Task';
+  static const String taskNameLabel = 'What needs doing?';
+  static const String taskNameHint = 'Finish the assignment';
+  static const String taskDueLabel = 'Due';
+  static const String taskDueDateToday = 'Today';
+  static const String taskPriorityLabel = 'Priority';
+  static const String taskPriorityLow = 'Low';
+  static const String taskPriorityNormal = 'Normal';
+  static const String taskPriorityHigh = 'High';
+  static const String taskNotesLabel = 'Notes (optional)';
+  static const String taskNotesHint = 'Anything worth remembering...';
+  static const String saveTaskButton = 'Save';
+
+  // ---------------------------------------------------------------------------
   // Statistics (Phase 3 — strings reserved here for consistency)
   // ---------------------------------------------------------------------------
 
@@ -134,7 +205,7 @@ final class AppStrings {
   static const String streakCurrentLabel = 'Current Streak';
   static const String streakLongestLabel = 'Longest Streak';
   static const String streakPersonalBest = 'Personal best!';
-  static const String streakZeroMessage = 'Start a new streak today 🌱';
+  static const String streakZeroMessage = 'Start a new streak today';
   static const String weeklyInsightTitle = 'This Week';
 
   // ---------------------------------------------------------------------------
@@ -158,5 +229,6 @@ final class AppStrings {
 
   static const String navDashboard = 'Home';
   static const String navHabits = 'Habits';
+  static const String navTasks = 'Tasks';
   static const String navStatistics = 'Statistics';
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +11,7 @@ import '../models/habit_models.dart';
 import '../services/database_service.dart';
 import '../../core/extensions/date_extensions.dart';
 import '../../core/providers/current_date_provider.dart';
+import '../../core/utils/habit_schedule.dart';
 import '../../core/utils/streak_calculator.dart';
 
 /// Repository providing all habit-related data to the presentation layer.
@@ -59,9 +59,9 @@ class HabitRepository {
           HabitWithCompletion(
             habitId: habit.id,
             name: habit.name,
-            emoji: habit.emoji ?? cat?.emoji ?? '✨',
+            emoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
             categoryName: cat?.name ?? 'General',
-            categoryEmoji: cat?.emoji ?? '✨',
+            categoryEmoji: cat?.emoji ?? 'star_outline',
             categoryColorValue: cat?.colorValue ?? 0xFF78716C,
             frequencyType: habit.frequencyType,
             frequencyConfig: habit.frequencyConfig,
@@ -212,7 +212,7 @@ class HabitRepository {
             completionId: c.id,
             habitId: c.habitId,
             habitName: habit.name,
-            habitEmoji: habit.emoji ?? cat?.emoji ?? '✨',
+            habitEmoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
             completedAt: c.completedAt,
             completedDate: c.completedDate,
           ),
@@ -404,13 +404,19 @@ class HabitRepository {
         HabitBreakdown(
           habitId: habit.id,
           name: habit.name,
-          emoji: habit.emoji ?? cat?.emoji ?? '✨',
+          emoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
           categoryColorValue: cat?.colorValue ?? 0xFF78716C,
           completionRate: scheduledDays == 0
               ? 0.0
               : (recent.length / scheduledDays).clamp(0.0, 1.0),
-          currentStreak: StreakCalculator.currentStreak(allDates),
-          longestStreak: StreakCalculator.longestStreak(allDates),
+          currentStreak: StreakCalculator.currentStreak(
+            allDates,
+            isScheduled: (day) => _isHabitScheduledForDay(habit, day),
+          ),
+          longestStreak: StreakCalculator.longestStreak(
+            allDates,
+            isScheduled: (day) => _isHabitScheduledForDay(habit, day),
+          ),
           totalCompletions: allTime.length,
         ),
       );
@@ -442,9 +448,31 @@ class HabitRepository {
       uniqueDates.add(c.completedDate.startOfDay);
     }
     final sortedDates = uniqueDates.toList()..sort();
+
+    // A day only counts as "due" if some active habit was actually scheduled
+    // on it — otherwise a Mon–Fri-only account loses its overall streak
+    // every weekend, same bug as the single-habit case.
+    //
+    // ponytail: judged against *today's* active habits/schedules, not each
+    // day's historical schedule — a habit created or reschedued mid-streak
+    // is read as if it always had its current schedule. Good enough for a
+    // "day complete" streak; revisit if that mismatch starts to matter.
+    final activeHabits = await _habitDao.getActiveHabits();
+    final isScheduled = activeHabits.isEmpty
+        ? null // no active habits: fall back to "every day", so leftover
+        // completions from archived habits don't keep a streak alive forever
+        : (DateTime day) =>
+            activeHabits.any((h) => _isHabitScheduledForDay(h, day));
+
     return StreakData(
-      currentStreak: StreakCalculator.currentStreak(sortedDates),
-      longestStreak: StreakCalculator.longestStreak(sortedDates),
+      currentStreak: StreakCalculator.currentStreak(
+        sortedDates,
+        isScheduled: isScheduled,
+      ),
+      longestStreak: StreakCalculator.longestStreak(
+        sortedDates,
+        isScheduled: isScheduled,
+      ),
       lastCompletedDate: sortedDates.isNotEmpty ? sortedDates.last : null,
     );
   }
@@ -469,8 +497,6 @@ class HabitRepository {
     DateTime weekStart,
   ) async {
     final habits = await _habitDao.getActiveHabits();
-    final categories = await _categoryDao.getActiveCategories();
-    final catMap = {for (final c in categories) c.id: c};
 
     final weekCompletions = await _completionDao.getCompletionsInRange(
       weekStart,
@@ -533,8 +559,10 @@ class HabitRepository {
           habitCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
       try {
         final habit = habits.firstWhere((h) => h.id == bestId);
-        final cat = catMap[habit.categoryId];
-        bestHabit = '${habit.emoji ?? cat?.emoji ?? '✨'} ${habit.name}';
+        // Plain-text summary sentence — can't inline an icon here, so unlike
+        // every other habit.emoji use in this file, this one drops it rather
+        // than embedding the AppIconRegistry key as literal text.
+        bestHabit = habit.name;
       } catch (_) {}
     }
 
@@ -589,7 +617,7 @@ class HabitRepository {
     if (bestHabit != null && rate < 1.0) {
       parts.add('$bestHabit was your strongest this week.');
     } else if (rate >= 1.0) {
-      parts.add('A perfect week — beautifully done. 🌟');
+      parts.add('A perfect week — beautifully done.');
     }
 
     return parts.join(' ');
@@ -601,13 +629,23 @@ class HabitRepository {
 
   /// Get streak data for a specific habit.
   Future<StreakData> getHabitStreakData(int habitId) async {
+    final habit = await _habitDao.getHabitById(habitId);
     final completions = await _completionDao.getCompletionsForHabit(habitId);
     final dates = completions.map((c) => c.completedDate).toList();
+    bool isScheduled(DateTime day) => habit == null
+        ? true
+        : _isHabitScheduledForDay(habit, day);
     return StreakData(
-      currentStreak: StreakCalculator.currentStreak(dates),
-      longestStreak: StreakCalculator.longestStreak(dates),
+      currentStreak: StreakCalculator.currentStreak(dates, isScheduled: isScheduled),
+      longestStreak: StreakCalculator.longestStreak(dates, isScheduled: isScheduled),
       lastCompletedDate: dates.isNotEmpty ? dates.last : null,
     );
+  }
+
+  /// Watch every completion for a single habit — powers the Habit Detail
+  /// screen, which needs to react live to toggles made elsewhere.
+  Stream<List<HabitCompletion>> watchCompletionsForHabit(int habitId) {
+    return _completionDao.watchCompletionsForHabit(habitId);
   }
 
   // ---------------------------------------------------------------------------
@@ -615,22 +653,7 @@ class HabitRepository {
   // ---------------------------------------------------------------------------
 
   bool _isHabitScheduledForDay(Habit habit, DateTime day) {
-    switch (habit.frequencyType) {
-      case 'daily':
-        return true;
-      case 'specific_days':
-        if (habit.frequencyConfig == null) return true;
-        try {
-          final config = jsonDecode(habit.frequencyConfig!) as List;
-          return config.contains(day.weekday);
-        } catch (_) {
-          return true;
-        }
-      case 'x_per_week':
-        return true;
-      default:
-        return true;
-    }
+    return isScheduledOn(habit.frequencyType, habit.frequencyConfig, day);
   }
 
   // ---------------------------------------------------------------------------
@@ -663,9 +686,9 @@ class HabitRepository {
         HabitWithCompletion(
           habitId: habit.id,
           name: habit.name,
-          emoji: habit.emoji ?? cat?.emoji ?? '✨',
+          emoji: habit.emoji ?? cat?.emoji ?? 'star_outline',
           categoryName: cat?.name ?? 'General',
-          categoryEmoji: cat?.emoji ?? '✨',
+          categoryEmoji: cat?.emoji ?? 'star_outline',
           categoryColorValue: cat?.colorValue ?? 0xFF78716C,
           frequencyType: habit.frequencyType,
           frequencyConfig: habit.frequencyConfig,
@@ -729,6 +752,25 @@ final recentCompletionsProvider =
 final activeHabitsProvider = StreamProvider<List<Habit>>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return db.habitDao.watchActiveHabits();
+});
+
+final habitCompletionsProvider =
+    StreamProvider.family<List<HabitCompletion>, int>((ref, habitId) {
+  return ref.watch(habitRepositoryProvider).watchCompletionsForHabit(habitId);
+});
+
+/// Watches one habit by ID regardless of archived state — used by Habit
+/// Detail, which must stay reachable for archived habits too, and must
+/// reflect edits/archiving made from the Edit screen without a manual
+/// refresh.
+final habitByIdProvider = StreamProvider.family<Habit?, int>((ref, id) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.habitDao.watchHabitById(id);
+});
+
+final categoryByIdProvider = FutureProvider.family<Category?, int>((ref, id) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.categoryDao.getCategoryById(id);
 });
 
 final categoriesProvider = StreamProvider<List<Category>>((ref) {
@@ -797,4 +839,13 @@ final reflectionDaoProvider = Provider<ReflectionDao>((ref) {
 final mostCommonReasonsProvider =
     StreamProvider<List<ReasonFrequency>>((ref) {
   return ref.watch(reflectionDaoProvider).watchMostCommonReasons();
+});
+
+/// Same as [mostCommonReasonsProvider], scoped to one habit — used by
+/// Habit Detail's "Why it slipped" section.
+final habitReasonsProvider =
+    StreamProvider.family<List<ReasonFrequency>, int>((ref, habitId) {
+  return ref
+      .watch(reflectionDaoProvider)
+      .watchMostCommonReasonsForHabit(habitId);
 });

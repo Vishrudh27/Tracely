@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches AppColors.background (Clay & Oat palette) — used by the
+         native launch screen so cold start doesn't flash white. -->
+    <color name="launch_background">#FFFAF8F5</color>
+</resources>
