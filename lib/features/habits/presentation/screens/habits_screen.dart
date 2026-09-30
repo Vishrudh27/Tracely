@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -230,6 +232,15 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         (_selectedCategoryId != null &&
             !pinnedIds.contains(_selectedCategoryId));
 
+    // Chip shows what's actually picked, not a static "More" — otherwise
+    // the active filter is invisible once its category scrolls out of the
+    // pinned row.
+    final moreLabel = _showArchived
+        ? '${AppStrings.filterArchived} ▾'
+        : isMoreSelected
+            ? '${overflow.firstWhere((c) => c.id == _selectedCategoryId).name} ▾'
+            : 'More ▾';
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
@@ -265,7 +276,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
             const SizedBox(width: AppSpacing.xs),
             Expanded(
               child: _CategoryChip(
-                label: 'More ▾',
+                label: moreLabel,
                 isSelected: isMoreSelected,
                 onTap: () => _openMoreCategoriesSheet(overflow),
               ),
@@ -279,55 +290,65 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
   /// [overflow] excludes the 3 pinned categories; Archived is always
   /// appended since it was never part of `categories` to begin with.
   Future<void> _openMoreCategoriesSheet(List<Category> overflow) async {
-    final picked =
-        await showModalBottomSheet<(bool isArchived, int? categoryId)>(
-          context: context,
-          backgroundColor: AppColors.surface,
-          shape: const RoundedRectangleBorder(
-            borderRadius: AppRadius.bottomSheet,
-          ),
-          builder: (context) => SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: AppSpacing.sm),
-                for (final cat in overflow)
-                  ListTile(
-                    leading: Icon(
-                      AppIconRegistry.resolve(cat.emoji),
-                      color: Color(cat.colorValue),
+    final picked = await showDialog<(bool isArchived, int? categoryId)>(
+      context: context,
+      // Near-transparent barrier — the BackdropFilter below does the actual
+      // dimming via blur, so a solid barrier would double up on top of it.
+      barrierColor: Colors.black.withValues(alpha: 0.1),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 360),
+            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            decoration: BoxDecoration(
+              borderRadius: AppRadius.dialog,
+              boxShadow: AppShadows.lg,
+            ),
+            // ListTile needs a Material ancestor to paint/ink-respond — the
+            // plain Container above only gives it a shadow, not that.
+            child: ClipRRect(
+              borderRadius: AppRadius.dialog,
+              child: Material(
+                color: AppColors.surface,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.6,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: AppSpacing.sm),
+                        for (final cat in overflow)
+                          _MoreOptionRow(
+                            icon: AppIconRegistry.resolve(cat.emoji),
+                            iconColor: Color(cat.colorValue),
+                            label: cat.name,
+                            selected:
+                                !_showArchived &&
+                                _selectedCategoryId == cat.id,
+                            onTap: () =>
+                                Navigator.pop(context, (false, cat.id)),
+                          ),
+                        _MoreOptionRow(
+                          icon: Icons.archive_outlined,
+                          iconColor: AppColors.textSecondary,
+                          label: AppStrings.filterArchived,
+                          selected: _showArchived,
+                          onTap: () => Navigator.pop(context, (true, null)),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
                     ),
-                    title: Text(cat.name, style: context.textTheme.bodyLarge),
-                    trailing: !_showArchived && _selectedCategoryId == cat.id
-                        ? const Icon(
-                            Icons.check_rounded,
-                            color: AppColors.primary,
-                          )
-                        : null,
-                    onTap: () => Navigator.pop(context, (false, cat.id)),
                   ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.archive_outlined,
-                    color: AppColors.textSecondary,
-                  ),
-                  title: Text(
-                    AppStrings.filterArchived,
-                    style: context.textTheme.bodyLarge,
-                  ),
-                  trailing: _showArchived
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.primary,
-                        )
-                      : null,
-                  onTap: () => Navigator.pop(context, (true, null)),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
+              ),
             ),
           ),
-        );
+        ),
+      ),
+    );
     if (picked == null || !mounted) return;
     setState(() {
       _showArchived = picked.$1;
@@ -385,6 +406,56 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
       elevation: 2,
       shape: const CircleBorder(),
       child: const Icon(Icons.add_rounded, size: AppSizes.iconLg),
+    );
+  }
+}
+
+/// One row in the "More categories" dialog — same InkWell+Row+bodyLarge
+/// structure as Settings' `_SettingsRow`, not a ListTile, so the label
+/// renders with the identical font/weight instead of ListTile's own
+/// title-text defaults.
+class _MoreOptionRow extends StatelessWidget {
+  const _MoreOptionRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Row(
+            children: [
+              Icon(icon, color: iconColor),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  label,
+                  style: context.textTheme.bodyLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (selected)
+                const Icon(Icons.check_rounded, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

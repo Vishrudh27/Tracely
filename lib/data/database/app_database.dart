@@ -45,7 +45,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,6 +68,14 @@ class AppDatabase extends _$AppDatabase {
             // category coincidentally named "Health" is never touched.
             await _recolorBuiltInCategories();
           }
+          if (from < 5) {
+            // v4 → v5: `emoji` used to hold a literal emoji character; it
+            // now holds an AppIconRegistry key (see _seedDefaultCategories),
+            // but nothing ever rewrote existing rows, so upgraded installs
+            // still had the old character and every built-in category's
+            // icon silently fell back to AppIconRegistry.fallback (a star).
+            await _backfillBuiltInCategoryIconKeys();
+          }
         },
       );
 
@@ -87,6 +95,28 @@ class AppDatabase extends _$AppDatabase {
             ..where((c) =>
                 c.name.equals(entry.key) & c.isBuiltIn.equals(true)))
           .write(CategoriesCompanion(colorValue: Value(entry.value)));
+    }
+  }
+
+  /// The 7 built-ins' current [AppIconRegistry] keys — same names/keys as
+  /// [_seedDefaultCategories], kept separate so that method still reads as
+  /// the single source of truth for a *fresh* install.
+  static const _builtInCategoryIconKeys = {
+    'Health': 'favorite',
+    'Mind': 'psychology',
+    'Fitness': 'fitness_center',
+    'Learning': 'menu_book',
+    'Creativity': 'palette',
+    'Social': 'groups',
+    'Self-Care': 'spa',
+  };
+
+  Future<void> _backfillBuiltInCategoryIconKeys() async {
+    for (final entry in _builtInCategoryIconKeys.entries) {
+      await (update(categories)
+            ..where((c) =>
+                c.name.equals(entry.key) & c.isBuiltIn.equals(true)))
+          .write(CategoriesCompanion(emoji: Value(entry.value)));
     }
   }
 
