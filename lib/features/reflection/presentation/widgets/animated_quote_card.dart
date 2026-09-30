@@ -73,11 +73,11 @@ class AnimatedQuoteCard extends StatelessWidget {
                       Container(
                         width: 40,
                         height: 40,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.surfaceVariant,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.format_quote_rounded,
                           color: AppColors.primary,
                           size: AppSizes.iconLg,

@@ -168,7 +168,7 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
                       filled: true,
                       fillColor: AppColors.surfaceVariant,
                       contentPadding: AppSpacing.input,
-                      suffixIcon: const Icon(
+                      suffixIcon: Icon(
                         Icons.edit_note_rounded,
                         color: AppColors.textDisabled,
                       ),
@@ -319,7 +319,7 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Icon(Icons.spa_outlined, size: 18, color: AppColors.primary),
+                    Icon(Icons.spa_outlined, size: 18, color: AppColors.primary),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Text(

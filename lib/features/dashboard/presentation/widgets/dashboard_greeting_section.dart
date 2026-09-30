@@ -17,6 +17,8 @@ class DashboardGreetingSection extends StatelessWidget {
     this.currentStreak = 0,
     this.allDone = false,
     this.onSettingsTap,
+    this.isDark = false,
+    this.onToggleTheme,
   });
 
   final double opacity;
@@ -31,6 +33,12 @@ class DashboardGreetingSection extends StatelessWidget {
   /// exact. Shown only when provided, so this stays a no-op deviation until
   /// wired from the screen.
   final VoidCallback? onSettingsTap;
+
+  /// Also not in Stitch — Settings' dark-mode switch needed a
+  /// no-navigation, one-tap twin here. Same "shown only when provided"
+  /// contract as [onSettingsTap], so tests that don't wire it stay simple.
+  final bool isDark;
+  final VoidCallback? onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +73,16 @@ class DashboardGreetingSection extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onToggleTheme != null)
+                IconButton(
+                  onPressed: onToggleTheme,
+                  icon: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  ),
+                  iconSize: AppSizes.iconLg,
+                  color: AppColors.textSecondary,
+                  tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                ),
               if (onSettingsTap != null)
                 IconButton(
                   onPressed: onSettingsTap,

@@ -6,8 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../data/repositories/accent_color_repository.dart';
 import '../../../../data/repositories/motion_repository.dart';
 import '../../../../data/repositories/reminder_repository.dart';
+import '../../../../data/services/accent_color_service.dart';
 import '../../../../data/services/backup_service.dart';
 import '../../../../data/services/database_service.dart';
 import '../../../../data/services/reminder_service.dart';
@@ -205,6 +207,9 @@ class SettingsScreen extends ConsumerWidget {
           minute: ReminderService.defaultMinute,
         );
     final reduceMotion = ref.watch(reduceMotionProvider).asData?.value ?? false;
+    final accentPresetId =
+        ref.watch(accentColorProvider).asData?.value ?? kDefaultAccentPreset.id;
+    final accentPreset = AccentColorService.presetById(accentPresetId);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -220,10 +225,24 @@ class SettingsScreen extends ConsumerWidget {
                   const _SectionLabel('APPEARANCE', topPadding: AppSpacing.lg),
                   _SectionCard(
                     children: [
-                      const _SettingsRow(
+                      _SettingsRow(
                         label: 'Theme',
-                        value: 'Clay & Oat',
+                        value: accentPreset.label,
                         showChevron: false,
+                      ),
+                      const _RowDivider(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.md,
+                        ),
+                        child: _AccentColorSlider(
+                          selectedId: accentPresetId,
+                          onPreview: (id) =>
+                              ref.read(accentColorProvider.notifier).preview(id),
+                          onCommit: (id) =>
+                              ref.read(accentColorProvider.notifier).commit(id),
+                        ),
                       ),
                       const _RowDivider(),
                       Semantics(
@@ -343,7 +362,7 @@ class _SettingsHeader extends StatelessWidget {
     return Container(
       height: AppSizes.appBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -424,7 +443,7 @@ class _RowDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.only(left: AppSpacing.lg),
       child: Divider(height: 1, thickness: 1, color: AppColors.border),
     );
@@ -503,7 +522,7 @@ class _SettingsRow extends StatelessWidget {
                     ),
                   ),
                 if (showChevron)
-                  const Icon(
+                  Icon(
                     Icons.chevron_right_rounded,
                     size: AppSizes.iconMd,
                     color: AppColors.textDisabled,
@@ -542,7 +561,7 @@ class _SettingsSwitch extends StatelessWidget {
         child: Container(
           width: 20,
           height: 20,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: AppColors.surface,
             boxShadow: [
@@ -555,6 +574,154 @@ class _SettingsSwitch extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Accent-color picker — one pill-shaped track banded into
+/// [kAccentPresets]' colors, with a draggable thumb that snaps to the
+/// nearest band. Replaces an earlier row of square swatches: same 8
+/// choices, a third of the height, and no wrapped second row.
+class _AccentColorSlider extends StatefulWidget {
+  const _AccentColorSlider({
+    required this.selectedId,
+    required this.onPreview,
+    required this.onCommit,
+  });
+
+  final String selectedId;
+
+  /// Called on every band the thumb crosses while dragging — cheap
+  /// (in-memory only), so the whole app's colors follow the thumb live.
+  final ValueChanged<String> onPreview;
+
+  /// Called once, when the drag (or tap) ends — this is the one call that
+  /// hits disk.
+  final ValueChanged<String> onCommit;
+
+  @override
+  State<_AccentColorSlider> createState() => _AccentColorSliderState();
+}
+
+class _AccentColorSliderState extends State<_AccentColorSlider> {
+  /// Drag/tap hit area — kept well above Android's 48dp-equivalent min
+  /// even though the visible rail is much thinner.
+  static const _touchHeight = 44.0;
+
+  /// The actual pill — thin, like a real slider rail, not a strip of
+  /// full-height color blocks.
+  static const _railHeight = 8.0;
+
+  static const _thumbSize = 28.0;
+
+  /// Only set while a drag gesture is live.
+  int? _dragIndex;
+
+  /// Raw finger x while dragging — the thumb follows this continuously;
+  /// [_dragIndex] (snapped to a band) only decides which color previews.
+  /// Without this split the thumb itself was jumping in 8 discrete steps
+  /// instead of tracking the finger.
+  double? _dragX;
+
+  int get _committedIndex {
+    final i = kAccentPresets.indexWhere((p) => p.id == widget.selectedId);
+    return i == -1 ? 0 : i;
+  }
+
+  int get _displayIndex => _dragIndex ?? _committedIndex;
+
+  int _indexAt(double dx, double trackWidth) {
+    final segment = trackWidth / kAccentPresets.length;
+    return (dx / segment).floor().clamp(0, kAccentPresets.length - 1);
+  }
+
+  void _commit(int index) {
+    final id = kAccentPresets[index].id;
+    widget.onCommit(id);
+    setState(() {
+      _dragIndex = null;
+      _dragX = null;
+    });
+  }
+
+  /// Smooth blend through every preset in order — a rail, not a row of
+  /// hard-edged blocks.
+  static final List<Color> _railColors = [
+    for (final preset in kAccentPresets) preset.base,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trackWidth = constraints.maxWidth;
+        final segment = trackWidth / kAccentPresets.length;
+        // While dragging, follow the raw finger x (clamped) so the thumb
+        // moves 1:1 instead of hopping between 8 snap points. At rest, sit
+        // centered on the committed band.
+        final thumbLeft = _dragX != null
+            ? (_dragX! - _thumbSize / 2).clamp(0.0, trackWidth - _thumbSize)
+            : (segment * _displayIndex + segment / 2 - _thumbSize / 2)
+                .clamp(0.0, trackWidth - _thumbSize);
+
+        return GestureDetector(
+          onTapUp: (d) => _commit(_indexAt(d.localPosition.dx, trackWidth)),
+          onPanUpdate: (d) {
+            final dx = d.localPosition.dx.clamp(0.0, trackWidth);
+            final index = _indexAt(dx, trackWidth);
+            setState(() => _dragX = dx);
+            if (index != _dragIndex) {
+              _dragIndex = index;
+              widget.onPreview(kAccentPresets[index].id);
+            }
+          },
+          onPanEnd: (_) => _commit(_dragIndex ?? _committedIndex),
+          onPanCancel: () => setState(() {
+            _dragIndex = null;
+            _dragX = null;
+          }),
+          child: SizedBox(
+            width: double.infinity,
+            height: _touchHeight,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: (_touchHeight - _railHeight) / 2,
+                  child: Container(
+                    height: _railHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(_railHeight / 2),
+                      gradient: LinearGradient(colors: _railColors),
+                    ),
+                  ),
+                ),
+                AnimatedPositioned(
+                  duration: _dragX != null ? Duration.zero : AppDurations.fast,
+                  curve: AppCurves.standard,
+                  left: thumbLeft,
+                  top: (_touchHeight - _thumbSize) / 2,
+                  child: Semantics(
+                    label: 'Accent color: ${kAccentPresets[_displayIndex].label}',
+                    slider: true,
+                    child: Container(
+                      width: _thumbSize,
+                      height: _thumbSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: kAccentPresets[_displayIndex].base,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: AppShadows.sm,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -572,7 +739,7 @@ class _PrivacyNote extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: AppSpacing.xxs),
             child: Icon(
               Icons.lock_outline_rounded,

@@ -26,6 +26,8 @@ class DashboardEmptyView extends StatelessWidget {
     super.key,
     required this.onAddHabit,
     this.onSettingsTap,
+    this.isDark = false,
+    this.onToggleTheme,
   });
 
   final VoidCallback onAddHabit;
@@ -34,6 +36,9 @@ class DashboardEmptyView extends StatelessWidget {
   /// A first-run account has no habits to open Edit Habit from either, so
   /// this empty page is actually the one place Settings must stay reachable.
   final VoidCallback? onSettingsTap;
+
+  final bool isDark;
+  final VoidCallback? onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +71,16 @@ class DashboardEmptyView extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onToggleTheme != null)
+                IconButton(
+                  onPressed: onToggleTheme,
+                  icon: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  ),
+                  iconSize: AppSizes.iconLg,
+                  color: AppColors.textSecondary,
+                  tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                ),
               if (onSettingsTap != null)
                 IconButton(
                   onPressed: onSettingsTap,
@@ -205,7 +220,7 @@ class _DashedRingState extends State<_DashedRing>
           Container(
             width: 10,
             height: 10,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
               shape: BoxShape.circle,
             ),
@@ -270,7 +285,7 @@ class _QuietRitualTip extends StatelessWidget {
               color: AppColors.surfaceVariant,
               borderRadius: AppRadius.small,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.lightbulb_outline_rounded,
               size: 22,
               color: AppColors.accentTerracotta,
@@ -316,6 +331,8 @@ class DashboardRestDayView extends StatelessWidget {
     required this.tasks,
     required this.onToggleTask,
     this.onSettingsTap,
+    this.isDark = false,
+    this.onToggleTheme,
   });
 
   final List<TaskWithCategory> tasks;
@@ -323,6 +340,9 @@ class DashboardRestDayView extends StatelessWidget {
 
   /// Not in Stitch's mock — see [DashboardGreetingSection.onSettingsTap].
   final VoidCallback? onSettingsTap;
+
+  final bool isDark;
+  final VoidCallback? onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -360,6 +380,19 @@ class DashboardRestDayView extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (onToggleTheme != null)
+                      IconButton(
+                        onPressed: onToggleTheme,
+                        icon: Icon(
+                          isDark
+                              ? Icons.light_mode_outlined
+                              : Icons.dark_mode_outlined,
+                        ),
+                        iconSize: AppSizes.iconLg,
+                        color: AppColors.textSecondary,
+                        tooltip:
+                            isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                      ),
                     if (onSettingsTap != null)
                       IconButton(
                         onPressed: onSettingsTap,
@@ -376,11 +409,11 @@ class DashboardRestDayView extends StatelessWidget {
                   child: Container(
                     width: AppSizes.avatarXl,
                     height: AppSizes.avatarXl,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.surfaceVariant,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.self_improvement_rounded,
                       size: AppSizes.iconXl,
                       color: AppColors.textDisabled,
@@ -488,7 +521,7 @@ class DashboardErrorView extends StatelessWidget {
                   label: Text(AppStrings.errorDashboardCta),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary, width: 2),
+                    side: BorderSide(color: AppColors.primary, width: 2),
                     shape: RoundedRectangleBorder(
                       borderRadius: AppRadius.button,
                     ),
@@ -614,7 +647,7 @@ class DashboardLoadingView extends StatelessWidget {
           Container(
             width: 120,
             height: 120,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surfaceVariant,
               shape: BoxShape.circle,
             ),
@@ -622,7 +655,7 @@ class DashboardLoadingView extends StatelessWidget {
             child: Container(
               width: 104,
               height: 104,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.surface,
                 shape: BoxShape.circle,
               ),
@@ -693,7 +726,7 @@ class DashboardLoadingView extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(

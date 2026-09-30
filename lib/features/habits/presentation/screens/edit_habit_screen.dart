@@ -294,7 +294,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
             height: 48,
             child: IconButton(
               padding: EdgeInsets.zero,
-              icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+              icon: Icon(Icons.close_rounded, color: AppColors.textSecondary),
               onPressed: () => context.pop(),
             ),
           ),
@@ -302,7 +302,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
           TextButton(
             onPressed: _canSave ? _save : null,
             child: _isSaving
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -343,15 +343,15 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
           contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            borderSide: const BorderSide(color: AppColors.borderOutline),
+            borderSide: BorderSide(color: AppColors.borderOutline),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            borderSide: const BorderSide(color: AppColors.borderOutline),
+            borderSide: BorderSide(color: AppColors.borderOutline),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            borderSide: BorderSide(color: AppColors.primary, width: 2),
           ),
         ),
       ),

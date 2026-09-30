@@ -255,7 +255,7 @@ class _HabitDetailHeader extends StatelessWidget {
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -510,16 +510,16 @@ class _YearHeatmap extends StatelessWidget {
   /// color — a Mon–Fri habit shouldn't look like it failed every weekend.
   /// Still a visible box (not transparent) so the grid doesn't look like it
   /// has holes in it.
-  Color _cellColor(DateTime day) {
-    if (day.isAfter(today) ||
-        day.isBefore(createdDay) ||
-        !isScheduledOn(frequencyType, frequencyConfig, day)) {
-      return AppColors.border;
-    }
-    return completedDays.contains(day)
-        ? AppColors.heatmap.last
-        : AppColors.heatmap.first;
-  }
+  // Out-of-schedule and "missed" used to get two different colors
+  // (AppColors.border vs AppColors.heatmap.first) — fine in light mode,
+  // where border happens to sit close to heatmap[0], but dark mode's
+  // border is tuned bright enough to read as a hairline elsewhere, which
+  // made out-of-schedule days visibly lighter than missed ones. Both are
+  // "not done" and now share one neutral, same as the legend's "Less"
+  // swatch — which also means schedule/range no longer affects the color
+  // at all, so this doesn't need day as input anymore.
+  Color _cellColor(bool completed) =>
+      completed ? AppColors.heatmap.last : AppColors.heatmap.first;
 
   @override
   Widget build(BuildContext context) {
@@ -616,7 +616,9 @@ class _YearHeatmap extends StatelessWidget {
                                 width: cell,
                                 height: cell,
                                 decoration: BoxDecoration(
-                                  color: _cellColor(start.addDays(c * 7 + r)),
+                                  color: _cellColor(
+                                    completedDays.contains(start.addDays(c * 7 + r)),
+                                  ),
                                   borderRadius: BorderRadius.circular(3.5),
                                 ),
                               ),

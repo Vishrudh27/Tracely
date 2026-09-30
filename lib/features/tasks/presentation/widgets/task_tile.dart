@@ -120,7 +120,7 @@ class TaskTile extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(color: AppColors.border, width: 1),
           ),
@@ -154,7 +154,7 @@ class _Checkbox extends StatelessWidget {
               : Border.all(color: AppColors.borderOutline, width: 2),
         ),
         child: checked
-            ? const Icon(Icons.check, size: 16, color: AppColors.textOnPrimary)
+            ? Icon(Icons.check, size: 16, color: AppColors.textOnPrimary)
             : null,
       ),
     );

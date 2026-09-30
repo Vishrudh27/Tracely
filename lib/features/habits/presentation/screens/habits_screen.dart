@@ -120,7 +120,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     return Container(
       height: AppSizes.appBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
@@ -138,7 +138,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
             onSelected: (sort) => setState(() => _sort = sort),
             color: AppColors.surface,
             shape: RoundedRectangleBorder(borderRadius: AppRadius.dialog),
-            icon: const Icon(
+            icon: Icon(
               Icons.tune_rounded,
               size: AppSizes.iconLg,
               color: AppColors.textSecondary,
@@ -451,7 +451,7 @@ class _MoreOptionRow extends StatelessWidget {
                 ),
               ),
               if (selected)
-                const Icon(Icons.check_rounded, color: AppColors.primary),
+                Icon(Icons.check_rounded, color: AppColors.primary),
             ],
           ),
         ),

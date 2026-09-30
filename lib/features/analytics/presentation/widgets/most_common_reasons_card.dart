@@ -110,7 +110,7 @@ class ReasonRow extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: percentage.clamp(0.0, 1.0),
                 backgroundColor: AppColors.surfaceVariant,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                 minHeight: 6,
               ),
             ),

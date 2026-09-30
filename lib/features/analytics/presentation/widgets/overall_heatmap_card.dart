@@ -300,10 +300,14 @@ class _TracelyHeatmap extends StatelessWidget {
                             decoration: BoxDecoration(
                               // Still a visible box when there's no data, not
                               // transparent — the grid shouldn't look like it
-                              // has holes in it.
-                              color: level < 0
-                                  ? AppColors.border
-                                  : AppColors.heatmap[level],
+                              // has holes in it. Same neutral as a real
+                              // zero-completion cell (heatmap[0]), not
+                              // AppColors.border — that read fine in light
+                              // mode by coincidence, but dark mode's border
+                              // is tuned bright enough to work as a hairline
+                              // elsewhere, which made "no data" cells
+                              // visibly lighter than "missed" ones.
+                              color: AppColors.heatmap[level < 0 ? 0 : level],
                               borderRadius: BorderRadius.circular(3),
                               border: isToday
                                   ? Border.all(

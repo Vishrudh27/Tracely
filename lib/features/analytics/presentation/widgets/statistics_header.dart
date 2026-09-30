@@ -14,7 +14,7 @@ class StatisticsHeader extends StatelessWidget {
     return Container(
       height: AppSizes.appBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       alignment: Alignment.centerLeft,

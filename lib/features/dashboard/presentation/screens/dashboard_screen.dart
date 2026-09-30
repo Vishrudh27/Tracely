@@ -15,6 +15,7 @@ import '../../../../data/models/habit_models.dart';
 import '../../../../data/models/task_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/repositories/task_repository.dart';
+import '../../../../data/repositories/theme_mode_repository.dart';
 import '../../../../data/services/reflection_gate_service.dart';
 import '../../../reflection/presentation/widgets/pause_and_reflect_sheet.dart';
 import '../widgets/daily_progress_card.dart';
@@ -246,12 +247,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // Empty state
   // ---------------------------------------------------------------------------
 
+  bool get _isDark => ref.watch(darkModeProvider).asData?.value ?? false;
+
+  void _toggleTheme() =>
+      ref.read(darkModeProvider.notifier).setEnabled(!_isDark);
+
   Widget _buildEmptyState() {
     return Opacity(
       opacity: _greetingOpacity.value,
       child: DashboardEmptyView(
         onAddHabit: () => context.push(AppRouter.addHabit),
         onSettingsTap: () => context.push(AppRouter.settings),
+        isDark: _isDark,
+        onToggleTheme: _toggleTheme,
       ),
     );
   }
@@ -267,6 +275,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         tasks: tasks,
         onToggleTask: _toggleTask,
         onSettingsTap: () => context.push(AppRouter.settings),
+        isDark: _isDark,
+        onToggleTheme: _toggleTheme,
       ),
     );
   }
@@ -297,6 +307,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 currentStreak: currentStreak,
                 allDone: progress.allDone,
                 onSettingsTap: () => context.push(AppRouter.settings),
+                isDark: _isDark,
+                onToggleTheme: _toggleTheme,
               ),
 
               const SizedBox(height: AppSpacing.sectionGap),

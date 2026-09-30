@@ -41,7 +41,7 @@ class WeeklyInsightsCard extends StatelessWidget {
               children: [
                 // Sole terracotta anchor for this viewport, per the design
                 // system's "one accent per screen" rule.
-                const Positioned(
+                Positioned(
                   left: 0,
                   top: 0,
                   bottom: 0,
@@ -60,7 +60,7 @@ class WeeklyInsightsCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.auto_awesome_rounded,
                             size: 16,
                             color: AppColors.accentText,

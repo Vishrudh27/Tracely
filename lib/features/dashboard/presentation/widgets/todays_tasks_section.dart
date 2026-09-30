@@ -107,7 +107,7 @@ class _TaskRow extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
@@ -127,7 +127,7 @@ class _TaskRow extends StatelessWidget {
                     : Border.all(color: AppColors.borderOutline, width: 2),
               ),
               child: task.isDone
-                  ? const Icon(
+                  ? Icon(
                       Icons.check_rounded,
                       size: 15,
                       color: AppColors.textOnPrimary,

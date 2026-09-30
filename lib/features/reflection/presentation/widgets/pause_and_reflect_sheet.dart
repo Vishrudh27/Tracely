@@ -361,11 +361,11 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
                     Container(
                       width: 40,
                       height: 40,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: AppColors.surfaceVariant,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.eco,
                         size: 28,
                         color: AppColors.success,
@@ -482,7 +482,7 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
       children: [
         Row(
           children: [
-            const Icon(Icons.edit_note_rounded, size: 16, color: AppColors.textPrimary),
+            Icon(Icons.edit_note_rounded, size: 16, color: AppColors.textPrimary),
             const SizedBox(width: AppSpacing.sm),
             Text(
               'My Reason',
@@ -507,11 +507,11 @@ class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
             fillColor: AppColors.surfaceVariant,
             border: OutlineInputBorder(
               borderRadius: AppRadius.input,
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: AppRadius.input,
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: AppRadius.input,
