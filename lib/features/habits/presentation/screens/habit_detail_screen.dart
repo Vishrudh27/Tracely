@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/theme.dart';
 import '../../../../core/constants/app_icon_registry.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_extensions.dart';
+import '../../../../core/providers/current_date_provider.dart';
+import '../../../../core/utils/behavior_insights.dart';
 import '../../../../core/utils/habit_schedule.dart';
 import '../../../../core/utils/streak_calculator.dart';
 import '../../../../core/widgets/tracely_empty_state.dart';
@@ -155,6 +158,11 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
       completedDays: dateSet,
     );
 
+    final usualMinute = usualCompletionMinute(
+      completions.map((c) => c.completedAt),
+      today: ref.watch(currentDateProvider),
+    );
+
     // 16 weeks of columns, Monday-first, ending with the current week.
     final gridStart = today.startOfWeek.addDays(-(_weeks - 1) * 7);
 
@@ -186,6 +194,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                           habit: habit,
                           categoryName: category?.name ?? 'General',
                           iconKey: habit.emoji ?? category?.emoji,
+                          usualMinute: usualMinute,
                         ),
                       ),
                     ),
@@ -298,10 +307,14 @@ class _HabitIdentity extends StatelessWidget {
     required this.habit,
     required this.categoryName,
     required this.iconKey,
+    this.usualMinute,
   });
 
   final Habit habit;
   final String categoryName;
+
+  /// Typical completion time, when the data is consistent enough to say.
+  final int? usualMinute;
 
   /// The habit's own icon, falling back to its category's.
   final String? iconKey;
@@ -331,6 +344,15 @@ class _HabitIdentity extends StatelessWidget {
                 ?.copyWith(color: AppColors.textSecondary),
             textAlign: TextAlign.center,
           ),
+          if (usualMinute != null) ...[
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              '${AppStrings.usuallyDoneAround} ${clockLabel(usualMinute!)}',
+              style: context.textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
       ),
     );

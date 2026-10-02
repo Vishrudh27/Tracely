@@ -9,14 +9,17 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/utils/habit_schedule.dart';
 import '../../../../data/database/app_database.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/services/database_service.dart';
+import '../../../../data/services/reminder_service.dart';
 import '../widgets/category_picker.dart';
 import '../widgets/habit_delete_dialog.dart';
 import '../widgets/habit_form_tip_card.dart';
 import '../widgets/icon_picker_grid.dart';
 import '../widgets/frequency_selector.dart';
+import '../widgets/reminder_time_field.dart';
 
 /// Edit Habit screen — pre-populated form for an existing habit.
 ///
@@ -37,6 +40,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
   String _frequencyType = 'daily';
   List<int> _specificDays = [];
   String? _selectedIcon;
+  int? _reminderMinute;
   bool _isSaving = false;
   bool _isLoaded = false;
 
@@ -62,6 +66,8 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     // Without this the chosen weekdays came back empty, so saving any edit
     // wrote a null config and quietly turned the habit back into a daily one.
     _specificDays = _parseSpecificDays(habit.frequencyConfig);
+    _reminderMinute =
+        habit.reminderEnabled ? parseHhMm(habit.reminderTime) : null;
     _selectedCategory =
         categories.where((c) => c.id == habit.categoryId).firstOrNull;
   }
@@ -82,13 +88,23 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final db = ref.read(appDatabaseProvider);
+      final messenger = ScaffoldMessenger.of(context);
+      final habits = ref.read(habitRepositoryProvider);
       String? frequencyConfig;
       if (_frequencyType == 'specific_days' && _specificDays.isNotEmpty) {
         frequencyConfig = '[${_specificDays.join(",")}]';
       }
+      final reminder = _reminderMinute;
+      if (reminder != null && !await ReminderService.requestPermission()) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(AppStrings.notificationsOff),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
 
-      await db.habitDao.updateHabit(
+      await habits.updateHabit(
         HabitsCompanion(
           id: drift.Value(widget.habitId),
           name: drift.Value(_nameController.text.trim()),
@@ -96,6 +112,9 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
           categoryId: drift.Value(_selectedCategory!.id),
           frequencyType: drift.Value(_frequencyType),
           frequencyConfig: drift.Value(frequencyConfig),
+          reminderEnabled: drift.Value(reminder != null),
+          reminderTime:
+              drift.Value(reminder == null ? null : formatHhMm(reminder)),
           updatedAt: drift.Value(DateTime.now()),
         ),
       );
@@ -146,7 +165,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     );
 
     if (confirmed == true) {
-      await ref.read(appDatabaseProvider).habitDao.archiveHabit(widget.habitId);
+      await ref.read(habitRepositoryProvider).archiveHabit(widget.habitId);
       if (mounted) context.pop();
     }
   }
@@ -158,13 +177,14 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     // Both Habit Detail and this Edit screen sit above Habits on the
     // stack and both become stale once this habit is gone, so replace
     // down to Habits rather than popping back through either of them.
-    final db = ref.read(appDatabaseProvider);
+    // Captured before navigating — `ref` is dead once this screen is gone.
+    final habits = ref.read(habitRepositoryProvider);
     final router = GoRouter.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final habitName = _nameController.text.trim();
     router.go(AppRouter.habits);
 
-    await db.deleteHabit(widget.habitId);
+    await habits.deleteHabit(widget.habitId);
 
     messenger.showSnackBar(
       SnackBar(
@@ -241,6 +261,15 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
                               setState(() => _frequencyType = v),
                           onSpecificDaysChanged: (v) =>
                               setState(() => _specificDays = v),
+                        ),
+                        const SizedBox(height: AppSpacing.xxl),
+
+                        _buildSectionLabel(AppStrings.reminderLabel),
+                        const SizedBox(height: AppSpacing.sm),
+                        ReminderTimeField(
+                          minuteOfDay: _reminderMinute,
+                          onChanged: (v) =>
+                              setState(() => _reminderMinute = v),
                         ),
                         const SizedBox(height: AppSpacing.xxxl),
                         const HabitFormTipCard(),

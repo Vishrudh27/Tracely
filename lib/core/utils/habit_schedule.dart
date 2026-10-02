@@ -48,6 +48,33 @@ bool isScheduledOn(String frequencyType, String? frequencyConfig, DateTime day) 
   }
 }
 
+/// `"18:30"` → 1110 (minutes since midnight). Null for missing or malformed
+/// input — the stored format is exactly zero-padded `HH:mm`.
+int? parseHhMm(String? s) {
+  final m = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(s ?? '');
+  if (m == null) return null;
+  final h = int.parse(m.group(1)!);
+  final min = int.parse(m.group(2)!);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/// 1110 → `"18:30"` — the storage format for `reminderTime` / `dueTime`.
+String formatHhMm(int minuteOfDay) {
+  final h = (minuteOfDay ~/ 60).toString().padLeft(2, '0');
+  final m = (minuteOfDay % 60).toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
+/// 1110 → "6:30 PM" — same format as `ReminderSettings.timeLabel`.
+String clockLabel(int minuteOfDay) {
+  final hour = minuteOfDay ~/ 60;
+  final minute = minuteOfDay % 60;
+  final period = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
+}
+
 /// Percentage of this habit's *scheduled* days in the last [days] that were
 /// completed, as a whole number 0–100.
 ///

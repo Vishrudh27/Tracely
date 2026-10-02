@@ -28,4 +28,7 @@ const List<AccentPreset> kAccentPresets = [
   AccentPreset('rust', 'Rust', Color(0xFFA1432B)),
   AccentPreset('navy', 'Navy', Color(0xFF3A4750)),
   AccentPreset('berry', 'Berry', Color(0xFF8C3A5C)),
+  AccentPreset('black', 'Black', Color(0xFF000000)),
+  AccentPreset('lime', 'Lime', Color(0xFF4D6E00)),
+  AccentPreset('green', 'Green', Color(0xFF1B5E20)),
 ];

@@ -44,6 +44,16 @@ class CompletionDao extends DatabaseAccessor<AppDatabase>
     }
   }
 
+  /// Marks done without ever un-doing — voice "I did X" must not flip an
+  /// already-ticked habit back off like [toggleCompletion] would. The
+  /// UNIQUE(habitId, completedDate) key does the existence check.
+  Future<void> markCompleted(int habitId, DateTime date) async {
+    await into(habitCompletions).insert(
+      HabitCompletionsCompanion.insert(habitId: habitId, completedDate: date),
+      mode: InsertMode.insertOrIgnore,
+    );
+  }
+
   /// Check if a habit is completed on a given date.
   Future<bool> isCompleted(int habitId, DateTime date) async {
     final result = await (select(habitCompletions)

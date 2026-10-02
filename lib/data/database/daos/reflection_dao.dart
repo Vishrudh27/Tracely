@@ -176,6 +176,14 @@ class ReflectionDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Habits that already have at least one reason recorded for [date].
+  Future<Set<int>> getReflectedHabitIds(DateTime date) async {
+    final rows = await (select(habitReflections)
+          ..where((r) => r.missedDate.equals(_normalizeDate(date))))
+        .get();
+    return {for (final r in rows) r.habitId};
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------

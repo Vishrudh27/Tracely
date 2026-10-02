@@ -9,6 +9,7 @@ import '../database/daos/habit_dao.dart';
 import '../database/daos/reflection_dao.dart';
 import '../models/habit_models.dart';
 import '../services/database_service.dart';
+import '../services/reminder_service.dart';
 import '../../core/extensions/date_extensions.dart';
 import '../../core/providers/current_date_provider.dart';
 import '../../core/utils/habit_schedule.dart';
@@ -233,6 +234,38 @@ class HabitRepository {
   Future<void> toggleCompletion(int habitId, DateTime today) async {
     await _completionDao.toggleCompletion(habitId, today.startOfDay);
   }
+
+  /// Marks [habitId] done on [today] — never un-does it, unlike the toggle.
+  Future<void> setCompleted(int habitId, DateTime today) =>
+      _completionDao.markCompleted(habitId, today.startOfDay);
+
+  // ---------------------------------------------------------------------------
+  // Habit writes — every one keeps the habit's reminder in sync
+  // ---------------------------------------------------------------------------
+
+  Future<int> createHabit(HabitsCompanion habit) async {
+    final id = await _habitDao.insertHabit(habit);
+    await _syncReminder(id);
+    return id;
+  }
+
+  Future<void> updateHabit(HabitsCompanion habit) async {
+    await _habitDao.updateHabit(habit);
+    await _syncReminder(habit.id.value);
+  }
+
+  Future<void> archiveHabit(int id) async {
+    await _habitDao.archiveHabit(id);
+    await _syncReminder(id);
+  }
+
+  Future<void> deleteHabit(int id) async {
+    await _habitDao.attachedDatabase.deleteHabit(id);
+    await ReminderService.syncHabitReminder(id, null);
+  }
+
+  Future<void> _syncReminder(int id) async =>
+      ReminderService.syncHabitReminder(id, await _habitDao.getHabitById(id));
 
   // ---------------------------------------------------------------------------
   // Statistics: Heatmap data (N months)
@@ -676,11 +709,14 @@ class HabitRepository {
     final categories = await _categoryDao.getActiveCategories();
     final catMap = {for (final c in categories) c.id: c};
     final completedIds = {for (final c in completions) c.habitId};
+    final reflectedIds = await _habitDao.attachedDatabase.reflectionDao
+        .getReflectedHabitIds(normalized);
 
     final result = <HabitWithCompletion>[];
     for (final habit in habits) {
       if (!_isHabitScheduledForDay(habit, normalized)) continue;
       if (completedIds.contains(habit.id)) continue; // completed — not missed
+      if (reflectedIds.contains(habit.id)) continue; // already explained (e.g. by voice)
       final cat = catMap[habit.categoryId];
       result.add(
         HabitWithCompletion(

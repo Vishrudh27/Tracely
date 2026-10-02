@@ -9,6 +9,7 @@ import '../database/daos/category_dao.dart';
 import '../database/daos/task_dao.dart';
 import '../models/task_models.dart';
 import '../services/database_service.dart';
+import '../services/reminder_service.dart';
 
 /// Repository providing all task-related data to the presentation layer.
 ///
@@ -76,8 +77,8 @@ class TaskRepository {
     TaskPriority priority = TaskPriority.normal,
     int? categoryId,
     String? notes,
-  }) {
-    return _taskDao.insertTask(
+  }) async {
+    final id = await _taskDao.insertTask(
       TasksCompanion.insert(
         title: title,
         dueDate: Value(dueDate),
@@ -87,12 +88,22 @@ class TaskRepository {
         notes: Value(notes),
       ),
     );
+    await _syncReminder(id);
+    return id;
   }
 
-  Future<void> setTaskDone(int id, bool isDone) =>
-      _taskDao.setTaskDone(id, isDone);
+  Future<void> setTaskDone(int id, bool isDone) async {
+    await _taskDao.setTaskDone(id, isDone);
+    await _syncReminder(id);
+  }
 
-  Future<void> deleteTask(int id) => _taskDao.deleteTask(id);
+  Future<void> deleteTask(int id) async {
+    await _taskDao.deleteTask(id);
+    await ReminderService.syncTaskReminder(id, null);
+  }
+
+  Future<void> _syncReminder(int id) async =>
+      ReminderService.syncTaskReminder(id, await _taskDao.getTaskById(id));
 }
 
 // ---------------------------------------------------------------------------

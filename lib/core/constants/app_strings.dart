@@ -128,6 +128,11 @@ final class AppStrings {
   static const String categoryLabel = 'Category';
   static const String frequencyLabel = 'Frequency';
   static const String reminderLabel = 'Gentle reminder';
+  static const String reminderAdd = 'Add a reminder time';
+  static const String notificationsOff =
+      'Notifications are off for Tracely. Turn them on in system settings.';
+  static const String habitReminderBody = 'A gentle nudge — whenever you’re ready.';
+  static const String taskReminderBody = 'Your task is due now.';
   static const String iconLabel = 'Icon';
   static const String saveHabitButton = 'Save';
   static const String updateHabitButton = 'Save';
@@ -222,6 +227,52 @@ final class AppStrings {
   static const String todayLabel = 'Today';
   static const String yesterdayLabel = 'Yesterday';
   static const String daysAgoLabel = 'd ago';
+
+  // ---------------------------------------------------------------------------
+  // Voice — Talk to Tracely
+  // ---------------------------------------------------------------------------
+
+  static const String voiceTitle = 'Talk to Tracely';
+  static const String voiceFabTooltip = 'Talk to Tracely';
+  static const String voiceListening = 'Listening…';
+  static const String voiceHint = 'Tap the mic and say what you’d like to do.';
+  static const String voiceTypeHint = 'Or type it here';
+  static const String voiceDidntHear =
+      'Didn’t catch anything — try again, or type it.';
+  static const String voiceMicUnavailable =
+      'Microphone isn’t available — type it instead.';
+  static const String voiceRecognizerFailed =
+      'Speech recognition isn’t available right now — type it instead.';
+  static const String voiceSaveFailed = 'Couldn’t save that. Please try again.';
+  static const String voiceUnknownTitle =
+      'Not sure what to do with that. Try something like:';
+  static const List<String> voiceExamples = [
+    'Add running every morning at 6',
+    'Remind me to study at 9 PM',
+    'Mark meditation as done',
+    'I missed my workout because I was tired',
+  ];
+  static const String voiceConfirm = 'Confirm';
+  static const String voiceClose = 'Close';
+  static const String voiceWhichOne = 'Which one?';
+  static const String voiceNoReason =
+      'Add a reason — e.g. “…because I was tired”.';
+  static const String voiceAddTime = 'Add a time';
+  static const String voiceAlreadyDone = 'Already done today.';
+  static const String voiceMissSaved = 'Noted. Tomorrow is a fresh start.';
+  static const String voiceOnlineNotice =
+      'Using Google’s online speech — install offline English for '
+      'on-device recognition.';
+
+  // ---------------------------------------------------------------------------
+  // Insights — Smart suggestions
+  // ---------------------------------------------------------------------------
+
+  static const String smartSuggestionTitle = 'A small suggestion';
+  static const String smartSuggestionsSetting = 'Smart suggestions';
+  static const String insightMoveReminder = 'Move reminder';
+  static const String insightDismiss = 'Dismiss suggestion';
+  static const String usuallyDoneAround = 'Usually done around';
 
   // ---------------------------------------------------------------------------
   // Navigation labels
