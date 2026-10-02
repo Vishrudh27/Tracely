@@ -4,6 +4,10 @@
          below Android 13; POST_NOTIFICATIONS above that is added by the
          plugin's own manifest. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- speech_to_text: Talk to Tracely. Asked for at runtime by
+         SpeechToText.initialize(); recognition itself runs in the system
+         recognizer's process, so no INTERNET permission is needed here. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="habit_tracker"
         android:name="${applicationName}"
@@ -64,6 +68,11 @@
         <intent>
             <action android:name="android.intent.action.SENDTO"/>
             <data android:scheme="mailto"/>
+        </intent>
+        <!-- speech_to_text: Android 11+ package visibility for the system
+             speech recognizer. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>

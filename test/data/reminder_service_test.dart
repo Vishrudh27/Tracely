@@ -50,4 +50,52 @@ void main() {
       );
     });
   });
+
+  group('notification ids', () {
+    test('habit ids are unique, never 0, and below every task id', () {
+      final seen = <int>{};
+      for (var h = 1; h <= 1000; h++) {
+        for (var slot = 0; slot < 8; slot++) {
+          final id = habitNotificationId(h, slot);
+          expect(id, isNot(0));
+          expect(id, lessThan(taskNotificationId(1)));
+          expect(seen.add(id), isTrue, reason: 'habit $h slot $slot');
+        }
+      }
+    });
+  });
+
+  group('daysUntilNextWeekday', () {
+    // 2026-03-09 is a Monday.
+    test('same weekday, before the time → today', () {
+      expect(daysUntilNextWeekday(DateTime(2026, 3, 9, 7), 1, 8, 0), 0);
+    });
+    test('same weekday, at or after the time → next week', () {
+      expect(daysUntilNextWeekday(DateTime(2026, 3, 9, 8), 1, 8, 0), 7);
+      expect(daysUntilNextWeekday(DateTime(2026, 3, 9, 9), 1, 8, 0), 7);
+    });
+    test('Mon → Fri is 4, Sun → Mon is 1', () {
+      expect(daysUntilNextWeekday(DateTime(2026, 3, 9, 9), 5, 8, 0), 4);
+      expect(daysUntilNextWeekday(DateTime(2026, 3, 15, 23), 1, 8, 0), 1);
+    });
+  });
+
+  group('taskReminderAt', () {
+    final now = DateTime(2026, 3, 10, 12, 0);
+    test('missing date or time → null', () {
+      expect(taskReminderAt(null, '18:00', now), isNull);
+      expect(taskReminderAt(DateTime(2026, 3, 10), null, now), isNull);
+    });
+    test('past or exactly now → null', () {
+      expect(taskReminderAt(DateTime(2026, 3, 10), '11:59', now), isNull);
+      expect(taskReminderAt(DateTime(2026, 3, 10), '12:00', now), isNull);
+      expect(taskReminderAt(DateTime(2026, 3, 9), '18:00', now), isNull);
+    });
+    test('future → that moment', () {
+      expect(
+        taskReminderAt(DateTime(2026, 3, 10), '18:30', now),
+        DateTime(2026, 3, 10, 18, 30),
+      );
+    });
+  });
 }

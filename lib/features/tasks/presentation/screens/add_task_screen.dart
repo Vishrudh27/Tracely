@@ -10,6 +10,7 @@ import '../../../../data/database/app_database.dart';
 import '../../../../data/models/task_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/repositories/task_repository.dart';
+import '../../../../data/services/reminder_service.dart';
 
 /// Full-screen Add Task form — deliberately lighter and shorter than Add
 /// Habit: fewer fields, more air. See docs/stitch_prompt_kit.md §3.13.
@@ -67,7 +68,10 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
     if (!_canSave) return;
     setState(() => _isSaving = true);
     try {
-      await ref.read(taskRepositoryProvider).addTask(
+      final tasks = ref.read(taskRepositoryProvider);
+      // A due time now also schedules a reminder; ask once so it can show.
+      if (_dueTime != null) await ReminderService.requestPermission();
+      await tasks.addTask(
             title: _titleController.text.trim(),
             dueDate: _dueDate == null
                 ? null

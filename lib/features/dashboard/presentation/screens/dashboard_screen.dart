@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,22 +9,28 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_extensions.dart';
 import '../../../../core/providers/current_date_provider.dart';
+import '../../../../core/utils/behavior_insights.dart';
+import '../../../../core/utils/habit_schedule.dart';
 import '../../../../core/widgets/animated_list_item.dart';
 import '../../../../core/widgets/count_badge.dart';
 import '../../../../core/widgets/section_header.dart';
+import '../../../../data/database/app_database.dart';
 import '../../../../data/models/habit_models.dart';
 import '../../../../data/models/task_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
+import '../../../../data/repositories/insight_repository.dart';
 import '../../../../data/repositories/task_repository.dart';
 import '../../../../data/repositories/theme_mode_repository.dart';
 import '../../../../data/services/reflection_gate_service.dart';
 import '../../../reflection/presentation/widgets/pause_and_reflect_sheet.dart';
+import '../widgets/behavior_insight_card.dart';
 import '../widgets/daily_progress_card.dart';
 import '../widgets/dashboard_greeting_section.dart';
 import '../widgets/dashboard_motivation_footer.dart';
 import '../widgets/dashboard_state_views.dart';
 import '../widgets/habit_tile.dart';
 import '../widgets/todays_tasks_section.dart';
+import '../widgets/voice_command_sheet.dart';
 
 /// The Dashboard — Tracely's daily companion screen, matching the Stitch
 /// `dashboard/code.html` mockup: plain greeting header, ring progress card,
@@ -172,6 +179,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     await ref.read(habitRepositoryProvider).toggleCompletion(habitId, today);
   }
 
+  Future<void> _applyInsight(BehaviorInsight insight) async {
+    final minute = insight.suggestedMinute;
+    if (minute == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    await ref.read(habitRepositoryProvider).updateHabit(
+          HabitsCompanion(
+            id: drift.Value(insight.habitId),
+            reminderEnabled: const drift.Value(true),
+            reminderTime: drift.Value(formatHhMm(minute)),
+            updatedAt: drift.Value(DateTime.now()),
+          ),
+        );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Reminder moved to ${clockLabel(minute)}.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _toggleTask(int taskId, bool isDone) async {
     await ref.read(taskRepositoryProvider).setTaskDone(taskId, isDone);
   }
@@ -182,9 +209,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final activeHabitsAsync = ref.watch(activeHabitsProvider);
     final tasksAsync = ref.watch(todaysTasksProvider);
     final streakAsync = ref.watch(overallStreakProvider);
+    final insight = ref.watch(behaviorInsightProvider).asData?.value;
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => VoiceCommandSheet.show(context),
+        tooltip: AppStrings.voiceFabTooltip,
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.textOnPrimary,
+        elevation: 2,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.mic_rounded, size: AppSizes.iconLg),
+      ),
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _controller,
@@ -218,6 +255,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   tasks: tasksAsync.asData?.value ?? [],
                   currentStreak:
                       streakAsync.asData?.value.currentStreak ?? 0,
+                  insight: insight,
                 );
               },
             );
@@ -290,6 +328,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     required DailyProgress progress,
     required List<TaskWithCategory> tasks,
     required int currentStreak,
+    BehaviorInsight? insight,
   }) {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -322,6 +361,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
 
               const SizedBox(height: AppSpacing.sectionGap),
+
+              if (insight != null) ...[
+                BehaviorInsightCard(
+                  insight: insight,
+                  opacity: _progressOpacity.value,
+                  translateY: _progressSlide.value,
+                  onDismiss: () => ref
+                      .read(dismissedInsightsProvider.notifier)
+                      .dismiss(insight.key),
+                  onAction: () => _applyInsight(insight),
+                ),
+                const SizedBox(height: AppSpacing.sectionGap),
+              ],
 
               // 3. Today's Habits header
               Opacity(
@@ -397,6 +449,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               DashboardMotivationFooter(
                 opacity: _footerOpacity.value,
               ),
+              // Clear of the mic FAB.
+              const SizedBox(height: 96),
             ],
           ),
         ),

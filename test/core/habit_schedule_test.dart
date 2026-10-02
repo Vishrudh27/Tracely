@@ -98,4 +98,28 @@ void main() {
       expect(isScheduledOn('x_per_week', '{"count":3}', today), isTrue);
     });
   });
+
+  group('clock helpers', () {
+    test('parseHhMm / formatHhMm round trip', () {
+      for (final m in [0, 1, 59, 60, 720, 1110, 1439]) {
+        expect(parseHhMm(formatHhMm(m)), m);
+      }
+      expect(formatHhMm(1110), '18:30');
+      expect(parseHhMm('06:00'), 360);
+    });
+
+    test('parseHhMm rejects malformed values', () {
+      for (final bad in [null, '', '9:5', '25:00', '12:60', '6pm', '1830']) {
+        expect(parseHhMm(bad), isNull, reason: '$bad');
+      }
+    });
+
+    test('clockLabel', () {
+      expect(clockLabel(0), '12:00 AM');
+      expect(clockLabel(720), '12:00 PM');
+      expect(clockLabel(1110), '6:30 PM');
+      expect(clockLabel(1439), '11:59 PM');
+      expect(clockLabel(360), '6:00 AM');
+    });
+  });
 }

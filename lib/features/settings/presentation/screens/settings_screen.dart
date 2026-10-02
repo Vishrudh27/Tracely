@@ -5,13 +5,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/theme.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../data/repositories/accent_color_repository.dart';
+import '../../../../data/repositories/insight_repository.dart';
 import '../../../../data/repositories/motion_repository.dart';
 import '../../../../data/repositories/reminder_repository.dart';
 import '../../../../data/services/accent_color_service.dart';
 import '../../../../data/services/backup_service.dart';
 import '../../../../data/services/database_service.dart';
+import '../../../../data/services/insight_service.dart';
 import '../../../../data/services/reminder_service.dart';
 
 /// Settings — the four Stitch sections plus a Danger Zone.
@@ -68,11 +71,15 @@ class SettingsScreen extends ConsumerWidget {
 
     if (confirmed != true || !context.mounted) return;
 
-    await ref.read(appDatabaseProvider).clearAllData();
+    final db = ref.read(appDatabaseProvider);
+    await db.clearAllData();
     // Clear All Data means "back to first install" — a first install has no
     // reminder scheduled either.
     await ReminderService.reset();
+    await ReminderService.rescheduleAll(db);
+    await InsightService.clearDismissed();
     ref.invalidate(reminderSettingsProvider);
+    ref.invalidate(dismissedInsightsProvider);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -96,10 +103,7 @@ class SettingsScreen extends ConsumerWidget {
     // denials, the toggle would otherwise just silently snap back with no
     // explanation.
     if (value && !achieved && context.mounted) {
-      _showMessage(
-        context,
-        'Notifications are off for Tracely. Turn them on in system settings.',
-      );
+      _showMessage(context, AppStrings.notificationsOff);
     }
   }
 
@@ -171,7 +175,11 @@ class SettingsScreen extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
-    await ref.read(appDatabaseProvider).importData(data);
+    final db = ref.read(appDatabaseProvider);
+    await db.importData(data);
+    await ReminderService.rescheduleAll(db);
+    await InsightService.clearDismissed();
+    ref.invalidate(dismissedInsightsProvider);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -207,6 +215,8 @@ class SettingsScreen extends ConsumerWidget {
           minute: ReminderService.defaultMinute,
         );
     final reduceMotion = ref.watch(reduceMotionProvider).asData?.value ?? false;
+    final smartSuggestions =
+        ref.watch(smartSuggestionsProvider).asData?.value ?? true;
     final accentPresetId =
         ref.watch(accentColorProvider).asData?.value ?? kDefaultAccentPreset.id;
     final accentPreset = AccentColorService.presetById(accentPresetId);
@@ -284,6 +294,17 @@ class SettingsScreen extends ConsumerWidget {
                             ? () => _pickReminderTime(context, ref, reminder)
                             : () => _showMessage(
                                 context, 'Turn the reminder on first.'),
+                      ),
+                      const _RowDivider(),
+                      Semantics(
+                        toggled: smartSuggestions,
+                        child: _SettingsRow(
+                          label: AppStrings.smartSuggestionsSetting,
+                          trailing: _SettingsSwitch(value: smartSuggestions),
+                          onTap: () => ref
+                              .read(smartSuggestionsProvider.notifier)
+                              .setEnabled(!smartSuggestions),
+                        ),
                       ),
                     ],
                   ),
@@ -650,6 +671,16 @@ class _AccentColorSliderState extends State<_AccentColorSlider> {
     for (final preset in kAccentPresets) preset.base,
   ];
 
+  /// Same stop math as the rail's [LinearGradient] (n colors over n-1
+  /// evenly spaced segments across the full track), so the thumb blends
+  /// continuously along it instead of hopping to the next preset's solid
+  /// color every time it crosses a band edge.
+  Color _colorAt(double dx, double trackWidth) {
+    final t = (dx / trackWidth).clamp(0.0, 1.0) * (_railColors.length - 1);
+    final lo = t.floor().clamp(0, _railColors.length - 2);
+    return Color.lerp(_railColors[lo], _railColors[lo + 1], t - lo)!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -710,7 +741,9 @@ class _AccentColorSliderState extends State<_AccentColorSlider> {
                       height: _thumbSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: kAccentPresets[_displayIndex].base,
+                        color: _dragX != null
+                            ? _colorAt(_dragX!, trackWidth)
+                            : kAccentPresets[_displayIndex].base,
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: AppShadows.sm,
                       ),
@@ -751,7 +784,8 @@ class _PrivacyNote extends StatelessWidget {
           Expanded(
             child: Text(
               'Everything stays on this device. '
-              'Tracely has no account and no servers.',
+              'Tracely has no account and no servers. Voice input may use '
+              "Google's speech service when offline speech isn't installed.",
               style: context.textTheme.bodySmall?.copyWith(height: 1.6),
             ),
           ),
