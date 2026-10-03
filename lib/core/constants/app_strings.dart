@@ -12,6 +12,7 @@ final class AppStrings {
   // ---------------------------------------------------------------------------
 
   static const String appName = 'Tracely';
+
   /// Stitch's splash wordmark line — the brand promise, not a slogan.
   static const String appTagline = 'Know why, not just what';
 
@@ -27,7 +28,8 @@ final class AppStrings {
   // Onboarding
   // ---------------------------------------------------------------------------
 
-  static const String onboarding1Headline = 'Every tracker shows what you missed.';
+  static const String onboarding1Headline =
+      'Every tracker shows what you missed.';
   static const String onboarding1Body =
       'None of them show why. That blank space is the whole reason Tracely exists.';
 
@@ -96,8 +98,7 @@ final class AppStrings {
       "Your habits aren't scheduled today. Take the day off.";
 
   static const String emptyHabitsTitle = 'A blank page is full of possibility';
-  static const String emptyHabitsBody =
-      'Add a habit to begin your journey.';
+  static const String emptyHabitsBody = 'Add a habit to begin your journey.';
   static const String emptyHabitsCta = 'Create a Habit';
 
   static const String emptyActivityTitle = 'Your story starts here';
@@ -131,7 +132,8 @@ final class AppStrings {
   static const String reminderAdd = 'Add a reminder time';
   static const String notificationsOff =
       'Notifications are off for Tracely. Turn them on in system settings.';
-  static const String habitReminderBody = 'A gentle nudge — whenever you’re ready.';
+  static const String habitReminderBody =
+      'A gentle nudge — whenever you’re ready.';
   static const String taskReminderBody = 'Your task is due now.';
   static const String iconLabel = 'Icon';
   static const String saveHabitButton = 'Save';
@@ -234,7 +236,8 @@ final class AppStrings {
 
   static const String voiceTitle = 'Talk to Tracely';
   static const String voiceFabTooltip = 'Talk to Tracely';
-  static const String voiceListening = 'Listening…';
+  static const String voiceListening =
+      'Listening… take your time, tap stop when you’re done.';
   static const String voiceHint = 'Tap the mic and say what you’d like to do.';
   static const String voiceTypeHint = 'Or type it here';
   static const String voiceDidntHear =
@@ -243,6 +246,7 @@ final class AppStrings {
       'Microphone isn’t available — type it instead.';
   static const String voiceRecognizerFailed =
       'Speech recognition isn’t available right now — type it instead.';
+  static const String voiceMicBusy = 'Mic busy — tap to retry.';
   static const String voiceSaveFailed = 'Couldn’t save that. Please try again.';
   static const String voiceUnknownTitle =
       'Not sure what to do with that. Try something like:';
@@ -251,8 +255,13 @@ final class AppStrings {
     'Remind me to study at 9 PM',
     'Mark meditation as done',
     'I missed my workout because I was tired',
+    'Delete the reading habit',
   ];
   static const String voiceConfirm = 'Confirm';
+  static const String voiceUndo = 'Undo';
+  static const String voiceDelete = 'Delete';
+  static const String voiceDeleteHabitNote =
+      'Its check-ins and reflections are removed too.';
   static const String voiceClose = 'Close';
   static const String voiceWhichOne = 'Which one?';
   static const String voiceNoReason =

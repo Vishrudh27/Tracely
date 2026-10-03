@@ -48,6 +48,12 @@ class HabitDao extends DatabaseAccessor<AppDatabase> with _$HabitDaoMixin {
         .watch();
   }
 
+  /// Watch every habit, archived too, most recently edited first.
+  Stream<List<Habit>> watchAllHabits() {
+    return (select(habits)..orderBy([(h) => OrderingTerm.desc(h.updatedAt)]))
+        .watch();
+  }
+
   /// Get a single habit by ID.
   Future<Habit?> getHabitById(int id) {
     return (select(habits)..where((h) => h.id.equals(id))).getSingleOrNull();

@@ -4,10 +4,13 @@
          below Android 13; POST_NOTIFICATIONS above that is added by the
          plugin's own manifest. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <!-- speech_to_text: Talk to Tracely. Asked for at runtime by
-         SpeechToText.initialize(); recognition itself runs in the system
-         recognizer's process, so no INTERNET permission is needed here. -->
+    <!-- speech_to_text: Talk to Tracely. RECORD_AUDIO is asked for at
+         runtime by SpeechToText.initialize(). The recognizer prefers the
+         online (cloud) engine when the phone is connected, for accuracy, so
+         INTERNET is required; it falls back to the on-device engine offline.
+         No audio leaves the app directly — Android's recognizer handles it. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="habit_tracker"
         android:name="${applicationName}"

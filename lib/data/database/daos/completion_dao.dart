@@ -54,6 +54,16 @@ class CompletionDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Removes a completion for [date] if present — the Undo for a voice
+  /// "mark done". No-op when none exists.
+  Future<void> removeCompletion(int habitId, DateTime date) async {
+    await (delete(habitCompletions)
+          ..where(
+            (c) => c.habitId.equals(habitId) & c.completedDate.equals(date),
+          ))
+        .go();
+  }
+
   /// Check if a habit is completed on a given date.
   Future<bool> isCompleted(int habitId, DateTime date) async {
     final result = await (select(habitCompletions)

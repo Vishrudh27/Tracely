@@ -13,6 +13,7 @@ import '../../../../data/repositories/motion_repository.dart';
 import '../../../../data/repositories/reminder_repository.dart';
 import '../../../../data/services/accent_color_service.dart';
 import '../../../../data/services/backup_service.dart';
+import '../../../../data/services/category_memory_service.dart';
 import '../../../../data/services/database_service.dart';
 import '../../../../data/services/insight_service.dart';
 import '../../../../data/services/reminder_service.dart';
@@ -78,6 +79,7 @@ class SettingsScreen extends ConsumerWidget {
     await ReminderService.reset();
     await ReminderService.rescheduleAll(db);
     await InsightService.clearDismissed();
+    await CategoryMemoryService.clear();
     ref.invalidate(reminderSettingsProvider);
     ref.invalidate(dismissedInsightsProvider);
 
@@ -179,6 +181,7 @@ class SettingsScreen extends ConsumerWidget {
     await db.importData(data);
     await ReminderService.rescheduleAll(db);
     await InsightService.clearDismissed();
+    await CategoryMemoryService.clear();
     ref.invalidate(dismissedInsightsProvider);
 
     if (!context.mounted) return;

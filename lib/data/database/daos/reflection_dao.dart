@@ -176,6 +176,24 @@ class ReflectionDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Removes a reason recorded for [missedDate] — the Undo for a voice
+  /// "I missed X".
+  Future<void> removeHabitReflection(
+    int habitId,
+    DateTime missedDate,
+    String reason,
+  ) async {
+    final normalized = _normalizeDate(missedDate);
+    await (delete(habitReflections)
+          ..where(
+            (r) =>
+                r.habitId.equals(habitId) &
+                r.missedDate.equals(normalized) &
+                r.reason.equals(reason),
+          ))
+        .go();
+  }
+
   /// Habits that already have at least one reason recorded for [date].
   Future<Set<int>> getReflectedHabitIds(DateTime date) async {
     final rows = await (select(habitReflections)
