@@ -70,6 +70,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.forward();
       _checkPauseAndReflect();
+      VoiceCommandSheet.prewarm();
     });
   }
 

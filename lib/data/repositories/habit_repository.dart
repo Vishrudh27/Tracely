@@ -239,6 +239,13 @@ class HabitRepository {
   Future<void> setCompleted(int habitId, DateTime today) =>
       _completionDao.markCompleted(habitId, today.startOfDay);
 
+  Future<bool> isCompletedOn(int habitId, DateTime today) =>
+      _completionDao.isCompleted(habitId, today.startOfDay);
+
+  /// Undo for a voice "mark done".
+  Future<void> clearCompleted(int habitId, DateTime today) =>
+      _completionDao.removeCompletion(habitId, today.startOfDay);
+
   // ---------------------------------------------------------------------------
   // Habit writes — every one keeps the habit's reminder in sync
   // ---------------------------------------------------------------------------
@@ -788,6 +795,13 @@ final recentCompletionsProvider =
 final activeHabitsProvider = StreamProvider<List<Habit>>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return db.habitDao.watchActiveHabits();
+});
+
+/// Every habit, archived too, most recently edited first — the voice sheet
+/// learns the user's own category choices from them.
+final allHabitsProvider = StreamProvider<List<Habit>>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.habitDao.watchAllHabits();
 });
 
 final habitCompletionsProvider =

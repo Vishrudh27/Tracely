@@ -83,8 +83,10 @@ DateTime? taskReminderAt(DateTime? dueDate, String? dueTime, DateTime now) {
 /// Id 0 is the one app-wide daily nudge (Settings → Reminders). Per-habit
 /// reminders use [habitNotificationId] and task reminders use
 /// [taskNotificationId]. Everything is inexact (`inexactAllowWhileIdle`):
-/// Android 14 denies the exact-alarm permission by default, so asking for it
-/// would add a permission prompt for a few minutes of precision.
+/// Android 14 denies the exact-alarm permission by default, and some OEMs
+/// (ColorOS) widen even exact alarms for regular apps.
+/// ponytail: reminders far ahead can land up to ~1h late; switch to
+/// AndroidScheduleMode.alarmClock (status-bar icon) if precision matters.
 class ReminderService {
   ReminderService._();
 
