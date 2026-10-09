@@ -25,6 +25,7 @@ class VoiceCommand {
     this.reasonKey,
     this.reasonText,
     this.target,
+    this.isCallReminder = false,
   });
 
   final VoiceIntent intent;
@@ -55,6 +56,12 @@ class VoiceCommand {
   /// For [VoiceIntent.deleteItem]: `'habit'`, `'task'`, or null when the
   /// user didn't say which.
   final String? target;
+
+  /// The user asked for a Call Reminder (full-screen ring, not a soft
+  /// notification) — "call remind me", "ring me", "call alarm for gym".
+  /// Only meaningful on [VoiceIntent.createHabit] /
+  /// [VoiceIntent.createReminderTask].
+  final bool isCallReminder;
 }
 
 const _unknown = VoiceCommand(intent: VoiceIntent.unknown);
@@ -63,6 +70,19 @@ const _dayNames = [
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
 ];
 const _day = '(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?';
+
+/// "call reminder", "call remind me", "ring me" — asks for the full-screen
+/// Call Reminder instead of a soft notification. Deliberately specific
+/// multi-word phrases only — a bare "call" is a common task name itself
+/// ("call mom", "call client") and must not trip this.
+final _callReminderRe = RegExp(
+  r'\b(?:call reminder|call remind(?: me| us)?'
+  r'|remind(?: me| us)? (?:by|with|via) (?:a )?call'
+  r'|ring me|ring alarm|ring reminder'
+  r'|phone call reminder|phone me|phone reminder'
+  r'|call alarm|call notify me|voice call reminder'
+  r'|(?:like|as) a (?:call|phone call))\b',
+);
 
 /// Words that say "this repeats" — a habit, not a one-off task.
 final _frequencyRe = RegExp(
@@ -84,10 +104,16 @@ VoiceCommand parseVoiceCommand(
   required DateTime today,
   required int nowMinute,
 }) {
-  final s = _stripFiller(_normalize(input));
-  if (s.isEmpty) return _unknown;
-  VoiceCommand task(String phrase) =>
-      _reminderTask(phrase, today: today, nowMinute: nowMinute);
+  final s0 = _stripFiller(_normalize(input));
+  if (s0.isEmpty) return _unknown;
+  final isCallReminder = _callReminderRe.hasMatch(s0);
+  final s = isCallReminder ? _tidy(s0.replaceFirst(_callReminderRe, ' ')) : s0;
+  VoiceCommand task(String phrase) => _reminderTask(
+        phrase,
+        today: today,
+        nowMinute: nowMinute,
+        isCallReminder: isCallReminder,
+      );
 
   final delete = _deleteRe.firstMatch(s);
   if (delete != null) return _delete(delete[2]!, delete[1]);
@@ -96,13 +122,20 @@ VoiceCommand parseVoiceCommand(
   if (reminder != null) return task(reminder[1]!);
 
   final create = _createRe.firstMatch(s);
-  if (create != null) return _createOrTask(create[1]!, task, saidHabit: _saidHabit(s));
+  if (create != null) {
+    return _createOrTask(
+      create[1]!,
+      task,
+      saidHabit: _saidHabit(s),
+      isCallReminder: isCallReminder,
+    );
+  }
 
   return _miss(s, today) ??
       _complete(s) ??
       _missByReason(s, today) ??
-      _byKeyword(s, task) ??
-      _byShape(s, task, today) ??
+      _byKeyword(s, task, isCallReminder: isCallReminder) ??
+      _byShape(s, task, today, isCallReminder: isCallReminder) ??
       _unknown;
 }
 
@@ -176,19 +209,22 @@ VoiceCommand _createOrTask(
   String phrase,
   VoiceCommand Function(String) task, {
   required bool saidHabit,
+  required bool isCallReminder,
 }) {
   final toList = RegExp(r' (?:to|in|on) (?:my |the )?(tasks?|to ?dos?|habits?)(?: list)?$')
       .firstMatch(phrase);
   if (toList != null) {
     final rest = phrase.substring(0, toList.start);
-    return toList[1]!.startsWith('habit') ? _createHabit(rest) : task(rest);
+    return toList[1]!.startsWith('habit')
+        ? _createHabit(rest, isCallReminder: isCallReminder)
+        : task(rest);
   }
   if (!saidHabit &&
       _oneOffRe.hasMatch(phrase) &&
       !_frequencyRe.hasMatch(phrase)) {
     return task(phrase);
   }
-  return _createHabit(phrase);
+  return _createHabit(phrase, isCallReminder: isCallReminder);
 }
 
 VoiceCommand _delete(String phrase, String? kindWord) {
@@ -212,7 +248,11 @@ VoiceCommand _delete(String phrase, String? kindWord) {
 }
 
 /// An intent keyword anywhere in the sentence — "reading habit add daily".
-VoiceCommand? _byKeyword(String s, VoiceCommand Function(String) task) {
+VoiceCommand? _byKeyword(
+  String s,
+  VoiceCommand Function(String) task, {
+  required bool isCallReminder,
+}) {
   String without(RegExp re) => _tidy(s.replaceAll(re, ' '));
 
   final delete = RegExp(r'\b(?:delete|remove|erase|get rid of)\b');
@@ -228,7 +268,12 @@ VoiceCommand? _byKeyword(String s, VoiceCommand Function(String) task) {
 
   final create = RegExp(r'\b(?:add|create|new|start|track|habits?)\b');
   if (create.hasMatch(s)) {
-    return _createOrTask(without(create), task, saidHabit: _saidHabit(s));
+    return _createOrTask(
+      without(create),
+      task,
+      saidHabit: _saidHabit(s),
+      isCallReminder: isCallReminder,
+    );
   }
 
   final done = RegExp(r'\b(?:done|completed?|finished|finish|over)\b');
@@ -244,8 +289,15 @@ VoiceCommand? _byKeyword(String s, VoiceCommand Function(String) task) {
 
 /// No intent words at all — guess from shape. Repeat words make a habit;
 /// "I …" is a report of something done; a time or date makes a task.
-VoiceCommand? _byShape(String s, VoiceCommand Function(String) task, DateTime today) {
-  if (_frequencyRe.hasMatch(s)) return _createHabit(s);
+VoiceCommand? _byShape(
+  String s,
+  VoiceCommand Function(String) task,
+  DateTime today, {
+  required bool isCallReminder,
+}) {
+  if (_frequencyRe.hasMatch(s)) {
+    return _createHabit(s, isCallReminder: isCallReminder);
+  }
   final stripped = _stripDoneWhen(s);
   final said = RegExp(r'^i (?:just |already )?(.+)$').firstMatch(stripped);
   if (said != null && !_oneOffRe.hasMatch(stripped)) {
@@ -478,7 +530,7 @@ int? _qualified(int h, int m, String qualifier) {
 // Intents
 // -----------------------------------------------------------------------------
 
-VoiceCommand _createHabit(String phrase) {
+VoiceCommand _createHabit(String phrase, {bool isCallReminder = false}) {
   final time = _extractTime(phrase);
   // A start day isn't part of the name: "reading from tomorrow onwards".
   var s = _tidy(time.rest.replaceAll(
@@ -529,6 +581,7 @@ VoiceCommand _createHabit(String phrase) {
     frequencyType: specific ? 'specific_days' : 'daily',
     specificDays: specific ? (days.toList()..sort()) : const [],
     minuteOfDay: time.minute,
+    isCallReminder: isCallReminder,
   );
 }
 
@@ -536,6 +589,7 @@ VoiceCommand _reminderTask(
   String phrase, {
   required DateTime today,
   required int nowMinute,
+  bool isCallReminder = false,
 }) {
   // A redundant "and set a reminder/alarm" clause — any task with a time
   // already notifies — but keep the time/date words around it.
@@ -599,6 +653,7 @@ VoiceCommand _reminderTask(
     text: name,
     minuteOfDay: minute,
     date: date ?? today,
+    isCallReminder: isCallReminder,
   );
 }
 

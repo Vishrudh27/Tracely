@@ -284,6 +284,21 @@ final class AppStrings {
   static const String usuallyDoneAround = 'Usually done around';
 
   // ---------------------------------------------------------------------------
+  // Call Reminder
+  // ---------------------------------------------------------------------------
+
+  static const String callReminderLabel = 'Call Reminder';
+  static const String callReminderSubtitle =
+      'Rings like an alarm at the exact time, even on silent.';
+  static const String callReminderSnooze = 'Snooze (5m)';
+  static const String callReminderDismiss = 'Dismiss';
+  static const String callReminderMarkDone = 'Will Complete';
+  static const String callReminderHabitSubtitle = 'Habit reminder';
+  static const String callReminderTaskSubtitle = 'Task reminder';
+  static const String callReminderExactAlarmPrompt =
+      'Allow Tracely to schedule exact alarms in system settings.';
+
+  // ---------------------------------------------------------------------------
   // Navigation labels
   // ---------------------------------------------------------------------------
 

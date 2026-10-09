@@ -77,6 +77,7 @@ class TaskRepository {
     TaskPriority priority = TaskPriority.normal,
     int? categoryId,
     String? notes,
+    bool isAlarmReminder = false,
   }) async {
     final id = await _taskDao.insertTask(
       TasksCompanion.insert(
@@ -86,6 +87,7 @@ class TaskRepository {
         priority: Value(priority.toStorage()),
         categoryId: Value(categoryId),
         notes: Value(notes),
+        isAlarmReminder: Value(dueTime != null && isAlarmReminder),
       ),
     );
     await _syncReminder(id);

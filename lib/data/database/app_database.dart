@@ -28,6 +28,8 @@ part 'app_database.g.dart';
 ///   v2 — added HabitReflections (Pause & Reflect, §8.4a)
 ///   v3 — added Tasks (one-off to-dos, separate from recurring Habits)
 ///   v4 — migrated Health/Mind/Fitness/Learning's colorValue to Stitch's hues
+///   v5 — backfilled built-in category icon keys (emoji column stores AppIconRegistry keys)
+///   v6 — added isAlarmReminder to Habits and Tasks (Call Reminder feature)
 @DriftDatabase(
   tables: [
     Categories,
@@ -45,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,6 +77,13 @@ class AppDatabase extends _$AppDatabase {
             // still had the old character and every built-in category's
             // icon silently fell back to AppIconRegistry.fallback (a star).
             await _backfillBuiltInCategoryIconKeys();
+          }
+          if (from < 6) {
+            // v5 → v6: Call Reminder feature — adds isAlarmReminder (bool,
+            // default false) to both Habits and Tasks. No data to backfill:
+            // the column defaults keep all existing reminders unchanged.
+            await m.addColumn(habits, habits.isAlarmReminder);
+            await m.addColumn(tasks, tasks.isAlarmReminder);
           }
         },
       );

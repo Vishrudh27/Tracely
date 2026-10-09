@@ -11,6 +11,20 @@
          No audio leaves the app directly — Android's recognizer handles it. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Call Reminder: exact AlarmClock scheduling (API 31+). Android 14+
+         may require the user to grant this manually via system settings for
+         fresh installs; the app falls back gracefully to a heads-up alarm-
+         category notification without full-screen intent if not granted. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <!-- Call Reminder: draw full-screen alarm UI over the lock screen.
+         Note: Android 14 OEMs may require manual grant in system settings;
+         see USE_FULL_SCREEN_INTENT note in the task spec. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- Call Reminder: vibrate the device from the ring screen. -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Call Reminder: wake the screen when an alarm fires. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="habit_tracker"
         android:name="${applicationName}"
@@ -54,6 +68,10 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
+
+        <!-- Native Call Reminder receivers -->
+        <receiver android:name=".CallAlarmFireReceiver" android:exported="false"/>
+        <receiver android:name=".CallAlarmActionReceiver" android:exported="false"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

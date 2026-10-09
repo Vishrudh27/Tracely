@@ -81,6 +81,11 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
   // it counts from listen start and cut off slow first words.
   static const _silence = Duration(seconds: 2);
 
+  /// No words at all since the segment started — stop early instead of
+  /// waiting out the full [_listenFor] cap. Longer than [_silence]: give
+  /// the user time to start speaking, not just to pause mid-sentence.
+  static const _noSpeech = Duration(seconds: 4);
+
   /// How long to wait for a final result after the mic closes — Android
   /// sometimes sends it late, sometimes never.
   static const _grace = Duration(milliseconds: 800);
@@ -186,6 +191,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
   String _altPrefix = '';
   Timer? _silenceTimer;
   Timer? _graceTimer;
+  Timer? _noSpeechTimer;
 
   @override
   void initState() {
@@ -314,6 +320,12 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
     // Don't arm the silence timer here: a run that heard words already has
     // one running (it persists across the restart), and arming it on a
     // fresh append would cut the user off before they start speaking.
+    //
+    // Do arm the no-speech timer: a fresh segment that never hears a word
+    // would otherwise sit open for the full 30s _listenFor cap (no pauseFor
+    // is set, so the recognizer itself won't cut it short).
+    _noSpeechTimer?.cancel();
+    _noSpeechTimer = Timer(_noSpeech, _onNoSpeech);
   }
 
   void _onResult(SpeechRecognitionResult r) {
@@ -325,6 +337,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
     // must not wipe the words already shown.
     if (words.isNotEmpty) {
       _segmentHeard = true;
+      _noSpeechTimer?.cancel();
       _input.text = _heard.isEmpty ? words : '$_heard $words';
       _armSilence();
     }
@@ -410,6 +423,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
     if (!mounted || !_segmentLive) return;
     _segmentLive = false;
     _graceTimer?.cancel();
+    _noSpeechTimer?.cancel();
     final error = _segmentError;
     final benign = error == null || _silentErrors.contains(error);
     final hasText = _input.text.trim().isNotEmpty;
@@ -447,6 +461,29 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
     _silenceTimer = Timer(_silence, _finish);
   }
 
+  /// Segment never heard a word — stop the mic instead of waiting out the
+  /// full [_listenFor] cap.
+  Future<void> _onNoSpeech() async {
+    if (!mounted || !_segmentLive || _segmentHeard) return;
+    debugPrint('Voice: no speech, stopping segment early');
+    final run = _run;
+    _segmentLive = false;
+    _watchdogTimer?.cancel();
+    _graceTimer?.cancel();
+    // Awaited, not fire-and-forget: a mic tap right after this must not
+    // race a still-in-flight cancel(), or the plugin's listen() silently
+    // no-ops (looks like the mic "turns off" instead of restarting).
+    try {
+      await _speech.cancel();
+    } catch (e) {
+      debugPrint('Voice: cancel failed: $e');
+    }
+    if (!mounted || run != _run) return;
+    if (_input.text.trim().isNotEmpty) return _parse();
+    _stopRun();
+    setState(() => _phase = _Phase.idle);
+  }
+
   /// Stop tapped, or the user went quiet: use what's in the box.
   void _finish() {
     if (!mounted || _phase != _Phase.listening) return;
@@ -463,6 +500,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
     _silenceTimer?.cancel();
     _graceTimer?.cancel();
     _watchdogTimer?.cancel();
+    _noSpeechTimer?.cancel();
     _watchdogRetrying = false;
     unawaited(
       _speech.cancel().catchError((Object e) {
@@ -870,6 +908,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
               reminderTime: drift.Value(
                 minute == null ? null : formatHhMm(minute),
               ),
+              isAlarmReminder: drift.Value(minute != null && cmd.isCallReminder),
             ),
           );
           if (_category!.id != _suggestedCategoryId) {
@@ -881,6 +920,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
             title: name,
             dueDate: _date!.startOfDay,
             dueTime: minute == null ? null : formatHhMm(minute),
+            isAlarmReminder: cmd.isCallReminder,
           );
           message = '“$name” added to ${_dateLabel(_date!)}$at.';
         case VoiceIntent.completeHabit:

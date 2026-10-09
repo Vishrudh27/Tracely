@@ -233,11 +233,31 @@ class HabitRepository {
   /// always writes to the day the user is actually looking at.
   Future<void> toggleCompletion(int habitId, DateTime today) async {
     await _completionDao.toggleCompletion(habitId, today.startOfDay);
+    await _syncReminderForCompletion(habitId, today);
   }
 
   /// Marks [habitId] done on [today] — never un-does it, unlike the toggle.
-  Future<void> setCompleted(int habitId, DateTime today) =>
-      _completionDao.markCompleted(habitId, today.startOfDay);
+  Future<void> setCompleted(int habitId, DateTime today) async {
+    await _completionDao.markCompleted(habitId, today.startOfDay);
+    await _syncReminderForCompletion(habitId, today);
+  }
+
+  /// Completing/un-completing a habit for the real current day changes
+  /// whether its Call Reminder alarm should still ring today — a completed
+  /// habit's alarm must not fire later the same day. Only acts when [today]
+  /// is actually today; completing a past day in the heatmap shouldn't
+  /// touch any scheduled alarm.
+  Future<void> _syncReminderForCompletion(int habitId, DateTime today) async {
+    if (!today.startOfDay.isAtSameMomentAs(DateTime.now().startOfDay)) return;
+    final habit = await _habitDao.getHabitById(habitId);
+    final completedToday =
+        await _completionDao.isCompleted(habitId, today.startOfDay);
+    await ReminderService.syncHabitReminder(
+      habitId,
+      habit,
+      completedToday: completedToday,
+    );
+  }
 
   Future<bool> isCompletedOn(int habitId, DateTime today) =>
       _completionDao.isCompleted(habitId, today.startOfDay);

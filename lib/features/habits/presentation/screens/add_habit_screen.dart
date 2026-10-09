@@ -34,6 +34,7 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
   List<int> _specificDays = [];
   String? _selectedIcon;
   int? _reminderMinute;
+  bool _isAlarmReminder = false;
   bool _isSaving = false;
 
   @override
@@ -63,13 +64,18 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
       final reminder = _reminderMinute;
       // Saved either way — the reminder starts showing once permission is
       // granted, so the row isn't lying.
-      if (reminder != null && !await ReminderService.requestPermission()) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.notificationsOff),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      if (reminder != null) {
+        if (!await ReminderService.requestPermission()) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(AppStrings.notificationsOff),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        if (_isAlarmReminder && !await ReminderService.canScheduleExact()) {
+          await ReminderService.requestExactAlarmPermission();
+        }
       }
 
       await habits.createHabit(
@@ -82,6 +88,7 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
           reminderEnabled: drift.Value(reminder != null),
           reminderTime:
               drift.Value(reminder == null ? null : formatHhMm(reminder)),
+          isAlarmReminder: drift.Value(reminder != null && _isAlarmReminder),
         ),
       );
 
@@ -162,6 +169,14 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
                       minuteOfDay: _reminderMinute,
                       onChanged: (v) => setState(() => _reminderMinute = v),
                     ),
+                    if (_reminderMinute != null) ...[  
+                      const SizedBox(height: AppSpacing.md),
+                      _CallReminderToggle(
+                        value: _isAlarmReminder,
+                        onChanged: (v) =>
+                            setState(() => _isAlarmReminder = v),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.xxxl),
 
                     const HabitFormTipCard(),
@@ -255,5 +270,117 @@ class _AddHabitScreenState extends ConsumerState<AddHabitScreen> {
 
   Widget _buildSectionLabel(String label) {
     return Text(label, style: context.textTheme.titleSmall);
+  }
+}
+
+/// Inline Call Reminder toggle — shown only when a reminder time is set.
+///
+/// Appears below the [ReminderTimeField] and slides in with an animated cross-
+/// fade so the form doesn't jump. Mirrors the `_SettingsSwitch` look.
+class _CallReminderToggle extends StatelessWidget {
+  const _CallReminderToggle({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: value
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: value ? AppColors.primary : AppColors.borderOutline,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.phone_in_talk_rounded,
+              size: AppSizes.iconMd,
+              color: value ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.callReminderLabel,
+                    style: context.textTheme.bodyLarge?.copyWith(
+                      color: value
+                          ? AppColors.primary
+                          : AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    AppStrings.callReminderSubtitle,
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _MiniSwitch(value: value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Miniature pill switch matching the Stitch design — shared with Edit Habit.
+class _MiniSwitch extends StatelessWidget {
+  const _MiniSwitch({required this.value});
+
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppDurations.fast,
+      width: 44,
+      height: 24,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: value ? AppColors.primary : AppColors.border,
+        borderRadius: AppRadius.fab,
+      ),
+      child: AnimatedAlign(
+        duration: AppDurations.fast,
+        curve: AppCurves.standard,
+        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0x26000000),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

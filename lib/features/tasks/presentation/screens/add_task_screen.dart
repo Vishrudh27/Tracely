@@ -30,6 +30,7 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
   TaskPriority _priority = TaskPriority.normal;
   Category? _selectedCategory;
   bool _isSaving = false;
+  bool _isAlarmReminder = false;
 
   @override
   void initState() {
@@ -70,7 +71,12 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
     try {
       final tasks = ref.read(taskRepositoryProvider);
       // A due time now also schedules a reminder; ask once so it can show.
-      if (_dueTime != null) await ReminderService.requestPermission();
+      if (_dueTime != null) {
+        await ReminderService.requestPermission();
+        if (_isAlarmReminder && !await ReminderService.canScheduleExact()) {
+          await ReminderService.requestExactAlarmPermission();
+        }
+      }
       await tasks.addTask(
             title: _titleController.text.trim(),
             dueDate: _dueDate == null
@@ -85,6 +91,7 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
             notes: _notesController.text.trim().isEmpty
                 ? null
                 : _notesController.text.trim(),
+            isAlarmReminder: _isAlarmReminder,
           );
       if (mounted) context.pop();
     } finally {
@@ -215,6 +222,13 @@ class _AddTaskScreenState extends ConsumerState<AddTaskScreen> {
                   ),
                 ],
               ),
+              if (_dueTime != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                _CallReminderToggle(
+                  value: _isAlarmReminder,
+                  onChanged: (v) => setState(() => _isAlarmReminder = v),
+                ),
+              ],
               const SizedBox(height: AppSpacing.xxl),
 
               _Label(AppStrings.taskPriorityLabel),
@@ -446,6 +460,114 @@ class _PriorityChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Appears below the due-time selector and only once a time is set — same
+/// widget as Add/Edit Habit's Call Reminder toggle.
+class _CallReminderToggle extends StatelessWidget {
+  const _CallReminderToggle({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: value
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: value ? AppColors.primary : AppColors.borderOutline,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.phone_in_talk_rounded,
+              size: AppSizes.iconMd,
+              color: value ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.callReminderLabel,
+                    style: context.textTheme.bodyLarge?.copyWith(
+                      color: value ? AppColors.primary : AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    AppStrings.callReminderSubtitle,
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _MiniSwitch(value: value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Miniature pill switch matching the Stitch design — same as Add/Edit Habit.
+class _MiniSwitch extends StatelessWidget {
+  const _MiniSwitch({required this.value});
+
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppDurations.fast,
+      width: 44,
+      height: 24,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: value ? AppColors.primary : AppColors.border,
+        borderRadius: AppRadius.fab,
+      ),
+      child: AnimatedAlign(
+        duration: AppDurations.fast,
+        curve: AppCurves.standard,
+        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0x26000000),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
         ),
       ),
     );

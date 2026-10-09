@@ -62,6 +62,12 @@ void main() {
           ),
         );
 
+    // createAll() above built every table at today's (v6) shape, which
+    // already has is_alarm_reminder — roll habits/tasks back to their true
+    // v3 shape too, or the v5→v6 addColumn migration below hits a column
+    // that's already there ("duplicate column name").
+    await db.customStatement('ALTER TABLE habits DROP COLUMN is_alarm_reminder');
+    await db.customStatement('ALTER TABLE tasks DROP COLUMN is_alarm_reminder');
     await db.customStatement('PRAGMA user_version = 3');
     await db.close();
 
