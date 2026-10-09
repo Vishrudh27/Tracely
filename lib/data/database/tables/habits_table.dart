@@ -39,6 +39,12 @@ class Habits extends Table {
   /// Reminder time as "HH:mm" string (e.g. "08:30"). Null if no reminder.
   TextColumn get reminderTime => text().nullable()();
 
+  /// When true, the reminder fires as a full-screen alarm (AndroidScheduleMode
+  /// .alarmClock) rather than a soft inexact notification. Default false —
+  /// existing habits are unaffected until the user opts in.
+  BoolColumn get isAlarmReminder =>
+      boolean().withDefault(const Constant(false))();
+
   /// Display sort order within the habits list.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 

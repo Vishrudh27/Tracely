@@ -35,6 +35,12 @@ class Tasks extends Table {
   /// Whether the task has been completed.
   BoolColumn get isDone => boolean().withDefault(const Constant(false))();
 
+  /// When true, the reminder fires as a full-screen alarm (AndroidScheduleMode
+  /// .alarmClock) rather than a soft inexact notification. Default false —
+  /// tasks without a due time are unaffected regardless of this flag.
+  BoolColumn get isAlarmReminder =>
+      boolean().withDefault(const Constant(false))();
+
   /// When this task was created.
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

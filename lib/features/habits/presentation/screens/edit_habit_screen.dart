@@ -41,6 +41,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
   List<int> _specificDays = [];
   String? _selectedIcon;
   int? _reminderMinute;
+  bool _isAlarmReminder = false;
   bool _isSaving = false;
   bool _isLoaded = false;
 
@@ -68,6 +69,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
     _specificDays = _parseSpecificDays(habit.frequencyConfig);
     _reminderMinute =
         habit.reminderEnabled ? parseHhMm(habit.reminderTime) : null;
+    _isAlarmReminder = habit.isAlarmReminder;
     _selectedCategory =
         categories.where((c) => c.id == habit.categoryId).firstOrNull;
   }
@@ -95,13 +97,18 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
         frequencyConfig = '[${_specificDays.join(",")}]';
       }
       final reminder = _reminderMinute;
-      if (reminder != null && !await ReminderService.requestPermission()) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.notificationsOff),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      if (reminder != null) {
+        if (!await ReminderService.requestPermission()) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(AppStrings.notificationsOff),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        if (_isAlarmReminder && !await ReminderService.canScheduleExact()) {
+          await ReminderService.requestExactAlarmPermission();
+        }
       }
 
       await habits.updateHabit(
@@ -115,6 +122,7 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
           reminderEnabled: drift.Value(reminder != null),
           reminderTime:
               drift.Value(reminder == null ? null : formatHhMm(reminder)),
+          isAlarmReminder: drift.Value(reminder != null && _isAlarmReminder),
           updatedAt: drift.Value(DateTime.now()),
         ),
       );
@@ -271,6 +279,14 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
                           onChanged: (v) =>
                               setState(() => _reminderMinute = v),
                         ),
+                        if (_reminderMinute != null) ...[  
+                          const SizedBox(height: AppSpacing.md),
+                          _CallReminderToggle(
+                            value: _isAlarmReminder,
+                            onChanged: (v) =>
+                                setState(() => _isAlarmReminder = v),
+                          ),
+                        ],
                         const SizedBox(height: AppSpacing.xxxl),
                         const HabitFormTipCard(),
                         const SizedBox(height: AppSpacing.xxxl),
@@ -389,5 +405,111 @@ class _EditHabitScreenState extends ConsumerState<EditHabitScreen> {
 
   Widget _buildSectionLabel(String label) {
     return Text(label, style: context.textTheme.titleSmall);
+  }
+}
+
+/// Inline Call Reminder toggle — shown only when a reminder time is set.
+class _CallReminderToggle extends StatelessWidget {
+  const _CallReminderToggle({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: value
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: value ? AppColors.primary : AppColors.borderOutline,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.phone_in_talk_rounded,
+              size: AppSizes.iconMd,
+              color: value ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.callReminderLabel,
+                    style: context.textTheme.bodyLarge?.copyWith(
+                      color: value ? AppColors.primary : AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    AppStrings.callReminderSubtitle,
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _MiniSwitch(value: value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniSwitch extends StatelessWidget {
+  const _MiniSwitch({required this.value});
+
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppDurations.fast,
+      width: 44,
+      height: 24,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: value ? AppColors.primary : AppColors.border,
+        borderRadius: AppRadius.fab,
+      ),
+      child: AnimatedAlign(
+        duration: AppDurations.fast,
+        curve: AppCurves.standard,
+        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0x26000000),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

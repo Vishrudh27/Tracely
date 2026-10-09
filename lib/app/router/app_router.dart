@@ -11,6 +11,7 @@ import '../../features/habits/presentation/screens/habit_detail_screen.dart';
 import '../../features/habits/presentation/screens/habits_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/reflection/presentation/screens/reflection_screen.dart';
+import '../../features/reminders/presentation/screens/alarm_ring_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/tasks/presentation/screens/add_task_screen.dart';
@@ -50,6 +51,9 @@ final class AppRouter {
   static const String tasks = '/tasks';
   static const String addTask = '/tasks/add';
   static const String statistics = '/statistics';
+  /// Full-screen ring screen shown when an alarm-mode notification fires.
+  /// Format: /alarm/habit/42 or /alarm/task/7
+  static const String alarmRing = '/alarm/:type/:id';
 
   // ---------------------------------------------------------------------------
   // Router
@@ -215,6 +219,25 @@ final class AppRouter {
           },
           transitionDuration: AppDurations.custom(320),
         ),
+      ),
+
+      // Alarm ring screen — shown when a Call Reminder notification fires.
+      // No shell, plain fade so it feels like an incoming-call overlay.
+      GoRoute(
+        path: alarmRing,
+        pageBuilder: (context, state) {
+          final type = state.pathParameters['type'] ?? 'habit';
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: AlarmRingScreen(type: type, id: id),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: AppDurations.custom(280),
+          );
+        },
       ),
 
       // Shell route wraps Dashboard, Habits, Tasks, Statistics with bottom nav

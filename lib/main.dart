@@ -6,10 +6,14 @@ import 'app/theme/app_colors.dart';
 import 'app/theme/app_durations.dart';
 import 'data/services/accent_color_service.dart';
 import 'data/services/motion_service.dart';
+import 'data/services/reminder_service.dart';
 import 'data/services/theme_mode_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize reminder notification listeners early
+  await ReminderService.initialize();
 
   // Read once before the first frame so nothing animates at full speed and
   // then jumps to zero a beat later.

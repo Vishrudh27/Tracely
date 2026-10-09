@@ -687,6 +687,21 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _isAlarmReminderMeta = const VerificationMeta(
+    'isAlarmReminder',
+  );
+  @override
+  late final GeneratedColumn<bool> isAlarmReminder = GeneratedColumn<bool>(
+    'is_alarm_reminder',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_alarm_reminder" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -697,6 +712,7 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     frequencyConfig,
     reminderEnabled,
     reminderTime,
+    isAlarmReminder,
     sortOrder,
     isArchived,
     createdAt,
@@ -775,6 +791,15 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
         ),
       );
     }
+    if (data.containsKey('is_alarm_reminder')) {
+      context.handle(
+        _isAlarmReminderMeta,
+        isAlarmReminder.isAcceptableOrUnknown(
+          data['is_alarm_reminder']!,
+          _isAlarmReminderMeta,
+        ),
+      );
+    }
     if (data.containsKey('sort_order')) {
       context.handle(
         _sortOrderMeta,
@@ -840,6 +865,10 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
         DriftSqlType.string,
         data['${effectivePrefix}reminder_time'],
       ),
+      isAlarmReminder: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_alarm_reminder'],
+      ) ?? false,
       sortOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
@@ -896,6 +925,9 @@ class Habit extends DataClass implements Insertable<Habit> {
   /// Reminder time as "HH:mm" string (e.g. "08:30"). Null if no reminder.
   final String? reminderTime;
 
+  /// When true, the reminder fires as a full-screen alarm.
+  final bool isAlarmReminder;
+
   /// Display sort order within the habits list.
   final int sortOrder;
 
@@ -917,6 +949,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     this.frequencyConfig,
     required this.reminderEnabled,
     this.reminderTime,
+    this.isAlarmReminder = false,
     required this.sortOrder,
     required this.isArchived,
     required this.createdAt,
@@ -939,6 +972,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     if (!nullToAbsent || reminderTime != null) {
       map['reminder_time'] = Variable<String>(reminderTime);
     }
+    map['is_alarm_reminder'] = Variable<bool>(isAlarmReminder);
     map['sort_order'] = Variable<int>(sortOrder);
     map['is_archived'] = Variable<bool>(isArchived);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -962,6 +996,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       reminderTime: reminderTime == null && nullToAbsent
           ? const Value.absent()
           : Value(reminderTime),
+      isAlarmReminder: Value(isAlarmReminder),
       sortOrder: Value(sortOrder),
       isArchived: Value(isArchived),
       createdAt: Value(createdAt),
@@ -983,6 +1018,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       frequencyConfig: serializer.fromJson<String?>(json['frequencyConfig']),
       reminderEnabled: serializer.fromJson<bool>(json['reminderEnabled']),
       reminderTime: serializer.fromJson<String?>(json['reminderTime']),
+      isAlarmReminder: serializer.fromJson<bool?>(json['isAlarmReminder']) ?? false,
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -1001,6 +1037,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       'frequencyConfig': serializer.toJson<String?>(frequencyConfig),
       'reminderEnabled': serializer.toJson<bool>(reminderEnabled),
       'reminderTime': serializer.toJson<String?>(reminderTime),
+      'isAlarmReminder': serializer.toJson<bool>(isAlarmReminder),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'isArchived': serializer.toJson<bool>(isArchived),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -1017,6 +1054,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     Value<String?> frequencyConfig = const Value.absent(),
     bool? reminderEnabled,
     Value<String?> reminderTime = const Value.absent(),
+    bool? isAlarmReminder,
     int? sortOrder,
     bool? isArchived,
     DateTime? createdAt,
@@ -1032,6 +1070,7 @@ class Habit extends DataClass implements Insertable<Habit> {
         : this.frequencyConfig,
     reminderEnabled: reminderEnabled ?? this.reminderEnabled,
     reminderTime: reminderTime.present ? reminderTime.value : this.reminderTime,
+    isAlarmReminder: isAlarmReminder ?? this.isAlarmReminder,
     sortOrder: sortOrder ?? this.sortOrder,
     isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt ?? this.createdAt,
@@ -1057,6 +1096,9 @@ class Habit extends DataClass implements Insertable<Habit> {
       reminderTime: data.reminderTime.present
           ? data.reminderTime.value
           : this.reminderTime,
+      isAlarmReminder: data.isAlarmReminder.present
+          ? data.isAlarmReminder.value
+          : this.isAlarmReminder,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       isArchived: data.isArchived.present
           ? data.isArchived.value
@@ -1077,6 +1119,7 @@ class Habit extends DataClass implements Insertable<Habit> {
           ..write('frequencyConfig: $frequencyConfig, ')
           ..write('reminderEnabled: $reminderEnabled, ')
           ..write('reminderTime: $reminderTime, ')
+          ..write('isAlarmReminder: $isAlarmReminder, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
@@ -1095,6 +1138,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     frequencyConfig,
     reminderEnabled,
     reminderTime,
+    isAlarmReminder,
     sortOrder,
     isArchived,
     createdAt,
@@ -1112,6 +1156,7 @@ class Habit extends DataClass implements Insertable<Habit> {
           other.frequencyConfig == this.frequencyConfig &&
           other.reminderEnabled == this.reminderEnabled &&
           other.reminderTime == this.reminderTime &&
+          other.isAlarmReminder == this.isAlarmReminder &&
           other.sortOrder == this.sortOrder &&
           other.isArchived == this.isArchived &&
           other.createdAt == this.createdAt &&
@@ -1127,6 +1172,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
   final Value<String?> frequencyConfig;
   final Value<bool> reminderEnabled;
   final Value<String?> reminderTime;
+  final Value<bool> isAlarmReminder;
   final Value<int> sortOrder;
   final Value<bool> isArchived;
   final Value<DateTime> createdAt;
@@ -1140,6 +1186,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     this.frequencyConfig = const Value.absent(),
     this.reminderEnabled = const Value.absent(),
     this.reminderTime = const Value.absent(),
+    this.isAlarmReminder = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1154,6 +1201,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     this.frequencyConfig = const Value.absent(),
     this.reminderEnabled = const Value.absent(),
     this.reminderTime = const Value.absent(),
+    this.isAlarmReminder = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1169,6 +1217,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     Expression<String>? frequencyConfig,
     Expression<bool>? reminderEnabled,
     Expression<String>? reminderTime,
+    Expression<bool>? isAlarmReminder,
     Expression<int>? sortOrder,
     Expression<bool>? isArchived,
     Expression<DateTime>? createdAt,
@@ -1183,6 +1232,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
       if (frequencyConfig != null) 'frequency_config': frequencyConfig,
       if (reminderEnabled != null) 'reminder_enabled': reminderEnabled,
       if (reminderTime != null) 'reminder_time': reminderTime,
+      if (isAlarmReminder != null) 'is_alarm_reminder': isAlarmReminder,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (isArchived != null) 'is_archived': isArchived,
       if (createdAt != null) 'created_at': createdAt,
@@ -1199,6 +1249,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     Value<String?>? frequencyConfig,
     Value<bool>? reminderEnabled,
     Value<String?>? reminderTime,
+    Value<bool>? isAlarmReminder,
     Value<int>? sortOrder,
     Value<bool>? isArchived,
     Value<DateTime>? createdAt,
@@ -1213,6 +1264,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
       frequencyConfig: frequencyConfig ?? this.frequencyConfig,
       reminderEnabled: reminderEnabled ?? this.reminderEnabled,
       reminderTime: reminderTime ?? this.reminderTime,
+      isAlarmReminder: isAlarmReminder ?? this.isAlarmReminder,
       sortOrder: sortOrder ?? this.sortOrder,
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
@@ -1246,6 +1298,9 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
     }
     if (reminderTime.present) {
       map['reminder_time'] = Variable<String>(reminderTime.value);
+    }
+    if (isAlarmReminder.present) {
+      map['is_alarm_reminder'] = Variable<bool>(isAlarmReminder.value);
     }
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
@@ -2619,6 +2674,21 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isAlarmReminderMeta = const VerificationMeta(
+    'isAlarmReminder',
+  );
+  @override
+  late final GeneratedColumn<bool> isAlarmReminder = GeneratedColumn<bool>(
+    'is_alarm_reminder',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_alarm_reminder" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -2641,6 +2711,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     categoryId,
     notes,
     isDone,
+    isAlarmReminder,
     createdAt,
   ];
   @override
@@ -2702,6 +2773,15 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         isDone.isAcceptableOrUnknown(data['is_done']!, _isDoneMeta),
       );
     }
+    if (data.containsKey('is_alarm_reminder')) {
+      context.handle(
+        _isAlarmReminderMeta,
+        isAlarmReminder.isAcceptableOrUnknown(
+          data['is_alarm_reminder']!,
+          _isAlarmReminderMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -2749,6 +2829,10 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_done'],
       )!,
+      isAlarmReminder: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_alarm_reminder'],
+      ) ?? false,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -2789,6 +2873,9 @@ class Task extends DataClass implements Insertable<Task> {
   /// Whether the task has been completed.
   final bool isDone;
 
+  /// When true, the reminder fires as a full-screen alarm.
+  final bool isAlarmReminder;
+
   /// When this task was created.
   final DateTime createdAt;
   const Task({
@@ -2800,6 +2887,7 @@ class Task extends DataClass implements Insertable<Task> {
     this.categoryId,
     this.notes,
     required this.isDone,
+    this.isAlarmReminder = false,
     required this.createdAt,
   });
   @override
@@ -2821,6 +2909,7 @@ class Task extends DataClass implements Insertable<Task> {
       map['notes'] = Variable<String>(notes);
     }
     map['is_done'] = Variable<bool>(isDone);
+    map['is_alarm_reminder'] = Variable<bool>(isAlarmReminder);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -2843,6 +2932,7 @@ class Task extends DataClass implements Insertable<Task> {
           ? const Value.absent()
           : Value(notes),
       isDone: Value(isDone),
+      isAlarmReminder: Value(isAlarmReminder),
       createdAt: Value(createdAt),
     );
   }
@@ -2861,6 +2951,7 @@ class Task extends DataClass implements Insertable<Task> {
       categoryId: serializer.fromJson<int?>(json['categoryId']),
       notes: serializer.fromJson<String?>(json['notes']),
       isDone: serializer.fromJson<bool>(json['isDone']),
+      isAlarmReminder: serializer.fromJson<bool?>(json['isAlarmReminder']) ?? false,
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -2876,6 +2967,7 @@ class Task extends DataClass implements Insertable<Task> {
       'categoryId': serializer.toJson<int?>(categoryId),
       'notes': serializer.toJson<String?>(notes),
       'isDone': serializer.toJson<bool>(isDone),
+      'isAlarmReminder': serializer.toJson<bool>(isAlarmReminder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -2889,6 +2981,7 @@ class Task extends DataClass implements Insertable<Task> {
     Value<int?> categoryId = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     bool? isDone,
+    bool? isAlarmReminder,
     DateTime? createdAt,
   }) => Task(
     id: id ?? this.id,
@@ -2899,6 +2992,7 @@ class Task extends DataClass implements Insertable<Task> {
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     notes: notes.present ? notes.value : this.notes,
     isDone: isDone ?? this.isDone,
+    isAlarmReminder: isAlarmReminder ?? this.isAlarmReminder,
     createdAt: createdAt ?? this.createdAt,
   );
   Task copyWithCompanion(TasksCompanion data) {
@@ -2913,6 +3007,9 @@ class Task extends DataClass implements Insertable<Task> {
           : this.categoryId,
       notes: data.notes.present ? data.notes.value : this.notes,
       isDone: data.isDone.present ? data.isDone.value : this.isDone,
+      isAlarmReminder: data.isAlarmReminder.present
+          ? data.isAlarmReminder.value
+          : this.isAlarmReminder,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -2928,6 +3025,7 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('categoryId: $categoryId, ')
           ..write('notes: $notes, ')
           ..write('isDone: $isDone, ')
+          ..write('isAlarmReminder: $isAlarmReminder, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -2943,6 +3041,7 @@ class Task extends DataClass implements Insertable<Task> {
     categoryId,
     notes,
     isDone,
+    isAlarmReminder,
     createdAt,
   );
   @override
@@ -2957,6 +3056,7 @@ class Task extends DataClass implements Insertable<Task> {
           other.categoryId == this.categoryId &&
           other.notes == this.notes &&
           other.isDone == this.isDone &&
+          other.isAlarmReminder == this.isAlarmReminder &&
           other.createdAt == this.createdAt);
 }
 
@@ -2969,6 +3069,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<int?> categoryId;
   final Value<String?> notes;
   final Value<bool> isDone;
+  final Value<bool> isAlarmReminder;
   final Value<DateTime> createdAt;
   const TasksCompanion({
     this.id = const Value.absent(),
@@ -2979,6 +3080,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.categoryId = const Value.absent(),
     this.notes = const Value.absent(),
     this.isDone = const Value.absent(),
+    this.isAlarmReminder = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   TasksCompanion.insert({
@@ -2990,6 +3092,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.categoryId = const Value.absent(),
     this.notes = const Value.absent(),
     this.isDone = const Value.absent(),
+    this.isAlarmReminder = const Value.absent(),
     this.createdAt = const Value.absent(),
   }) : title = Value(title);
   static Insertable<Task> custom({
@@ -3001,6 +3104,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<int>? categoryId,
     Expression<String>? notes,
     Expression<bool>? isDone,
+    Expression<bool>? isAlarmReminder,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -3012,6 +3116,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (categoryId != null) 'category_id': categoryId,
       if (notes != null) 'notes': notes,
       if (isDone != null) 'is_done': isDone,
+      if (isAlarmReminder != null) 'is_alarm_reminder': isAlarmReminder,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -3025,6 +3130,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<int?>? categoryId,
     Value<String?>? notes,
     Value<bool>? isDone,
+    Value<bool>? isAlarmReminder,
     Value<DateTime>? createdAt,
   }) {
     return TasksCompanion(
@@ -3036,6 +3142,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
       categoryId: categoryId ?? this.categoryId,
       notes: notes ?? this.notes,
       isDone: isDone ?? this.isDone,
+      isAlarmReminder: isAlarmReminder ?? this.isAlarmReminder,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -3066,6 +3173,9 @@ class TasksCompanion extends UpdateCompanion<Task> {
     }
     if (isDone.present) {
       map['is_done'] = Variable<bool>(isDone.value);
+    }
+    if (isAlarmReminder.present) {
+      map['is_alarm_reminder'] = Variable<bool>(isAlarmReminder.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
