@@ -636,6 +636,21 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isAlarmReminderMeta = const VerificationMeta(
+    'isAlarmReminder',
+  );
+  @override
+  late final GeneratedColumn<bool> isAlarmReminder = GeneratedColumn<bool>(
+    'is_alarm_reminder',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_alarm_reminder" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _sortOrderMeta = const VerificationMeta(
     'sortOrder',
   );
@@ -686,21 +701,6 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
-  );
-  static const VerificationMeta _isAlarmReminderMeta = const VerificationMeta(
-    'isAlarmReminder',
-  );
-  @override
-  late final GeneratedColumn<bool> isAlarmReminder = GeneratedColumn<bool>(
-    'is_alarm_reminder',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_alarm_reminder" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -868,7 +868,7 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, Habit> {
       isAlarmReminder: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_alarm_reminder'],
-      ) ?? false,
+      )!,
       sortOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
@@ -925,7 +925,9 @@ class Habit extends DataClass implements Insertable<Habit> {
   /// Reminder time as "HH:mm" string (e.g. "08:30"). Null if no reminder.
   final String? reminderTime;
 
-  /// When true, the reminder fires as a full-screen alarm.
+  /// When true, the reminder fires as a full-screen alarm (AndroidScheduleMode
+  /// .alarmClock) rather than a soft inexact notification. Default false —
+  /// existing habits are unaffected until the user opts in.
   final bool isAlarmReminder;
 
   /// Display sort order within the habits list.
@@ -949,7 +951,7 @@ class Habit extends DataClass implements Insertable<Habit> {
     this.frequencyConfig,
     required this.reminderEnabled,
     this.reminderTime,
-    this.isAlarmReminder = false,
+    required this.isAlarmReminder,
     required this.sortOrder,
     required this.isArchived,
     required this.createdAt,
@@ -1018,7 +1020,7 @@ class Habit extends DataClass implements Insertable<Habit> {
       frequencyConfig: serializer.fromJson<String?>(json['frequencyConfig']),
       reminderEnabled: serializer.fromJson<bool>(json['reminderEnabled']),
       reminderTime: serializer.fromJson<String?>(json['reminderTime']),
-      isAlarmReminder: serializer.fromJson<bool?>(json['isAlarmReminder']) ?? false,
+      isAlarmReminder: serializer.fromJson<bool>(json['isAlarmReminder']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -1328,6 +1330,7 @@ class HabitsCompanion extends UpdateCompanion<Habit> {
           ..write('frequencyConfig: $frequencyConfig, ')
           ..write('reminderEnabled: $reminderEnabled, ')
           ..write('reminderTime: $reminderTime, ')
+          ..write('isAlarmReminder: $isAlarmReminder, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
@@ -2168,40 +2171,53 @@ class $HabitReflectionsTable extends HabitReflections
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _habitIdMeta = const VerificationMeta(
-    'habitId',
+  static const VerificationMeta _reflectionDateMeta = const VerificationMeta(
+    'reflectionDate',
   );
   @override
-  late final GeneratedColumn<int> habitId = GeneratedColumn<int>(
-    'habit_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES habits (id)',
-    ),
-  );
-  static const VerificationMeta _missedDateMeta = const VerificationMeta(
-    'missedDate',
+  late final GeneratedColumn<DateTime> reflectionDate =
+      GeneratedColumn<DateTime>(
+        'reflection_date',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+        defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+      );
+  static const VerificationMeta _reasonKeysMeta = const VerificationMeta(
+    'reasonKeys',
   );
   @override
-  late final GeneratedColumn<DateTime> missedDate = GeneratedColumn<DateTime>(
-    'missed_date',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
-  @override
-  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
-    'reason',
+  late final GeneratedColumn<String> reasonKeys = GeneratedColumn<String>(
+    'reason_keys',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _customTextMeta = const VerificationMeta(
+    'customText',
+  );
+  @override
+  late final GeneratedColumn<String> customText = GeneratedColumn<String>(
+    'custom_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _followUpReasonKeyMeta = const VerificationMeta(
+    'followUpReasonKey',
+  );
+  @override
+  late final GeneratedColumn<String> followUpReasonKey =
+      GeneratedColumn<String>(
+        'follow_up_reason_key',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _followUpAnswerMeta = const VerificationMeta(
     'followUpAnswer',
   );
@@ -2212,6 +2228,17 @@ class $HabitReflectionsTable extends HabitReflections
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _missedHabitIdsMeta = const VerificationMeta(
+    'missedHabitIds',
+  );
+  @override
+  late final GeneratedColumn<String> missedHabitIds = GeneratedColumn<String>(
+    'missed_habit_ids',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
@@ -2225,14 +2252,29 @@ class $HabitReflectionsTable extends HabitReflections
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    habitId,
-    missedDate,
-    reason,
+    reflectionDate,
+    reasonKeys,
+    customText,
+    followUpReasonKey,
     followUpAnswer,
+    missedHabitIds,
     createdAt,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2249,29 +2291,39 @@ class $HabitReflectionsTable extends HabitReflections
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('habit_id')) {
+    if (data.containsKey('reflection_date')) {
       context.handle(
-        _habitIdMeta,
-        habitId.isAcceptableOrUnknown(data['habit_id']!, _habitIdMeta),
+        _reflectionDateMeta,
+        reflectionDate.isAcceptableOrUnknown(
+          data['reflection_date']!,
+          _reflectionDateMeta,
+        ),
       );
     } else if (isInserting) {
-      context.missing(_habitIdMeta);
+      context.missing(_reflectionDateMeta);
     }
-    if (data.containsKey('missed_date')) {
+    if (data.containsKey('reason_keys')) {
       context.handle(
-        _missedDateMeta,
-        missedDate.isAcceptableOrUnknown(data['missed_date']!, _missedDateMeta),
+        _reasonKeysMeta,
+        reasonKeys.isAcceptableOrUnknown(data['reason_keys']!, _reasonKeysMeta),
       );
     } else if (isInserting) {
-      context.missing(_missedDateMeta);
+      context.missing(_reasonKeysMeta);
     }
-    if (data.containsKey('reason')) {
+    if (data.containsKey('custom_text')) {
       context.handle(
-        _reasonMeta,
-        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+        _customTextMeta,
+        customText.isAcceptableOrUnknown(data['custom_text']!, _customTextMeta),
       );
-    } else if (isInserting) {
-      context.missing(_reasonMeta);
+    }
+    if (data.containsKey('follow_up_reason_key')) {
+      context.handle(
+        _followUpReasonKeyMeta,
+        followUpReasonKey.isAcceptableOrUnknown(
+          data['follow_up_reason_key']!,
+          _followUpReasonKeyMeta,
+        ),
+      );
     }
     if (data.containsKey('follow_up_answer')) {
       context.handle(
@@ -2282,10 +2334,27 @@ class $HabitReflectionsTable extends HabitReflections
         ),
       );
     }
+    if (data.containsKey('missed_habit_ids')) {
+      context.handle(
+        _missedHabitIdsMeta,
+        missedHabitIds.isAcceptableOrUnknown(
+          data['missed_habit_ids']!,
+          _missedHabitIdsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_missedHabitIdsMeta);
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
     return context;
@@ -2301,25 +2370,37 @@ class $HabitReflectionsTable extends HabitReflections
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      habitId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}habit_id'],
-      )!,
-      missedDate: attachedDatabase.typeMapping.read(
+      reflectionDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}missed_date'],
+        data['${effectivePrefix}reflection_date'],
       )!,
-      reason: attachedDatabase.typeMapping.read(
+      reasonKeys: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}reason'],
+        data['${effectivePrefix}reason_keys'],
       )!,
+      customText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_text'],
+      ),
+      followUpReasonKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}follow_up_reason_key'],
+      ),
       followUpAnswer: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}follow_up_answer'],
       ),
+      missedHabitIds: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}missed_habit_ids'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
       )!,
     );
   }
@@ -2334,56 +2415,79 @@ class HabitReflection extends DataClass implements Insertable<HabitReflection> {
   /// Auto-incrementing primary key.
   final int id;
 
-  /// The habit that was missed.
-  final int habitId;
+  /// The day the habits were missed (midnight-normalized, local time).
+  /// Unique constraint enforces exactly one reflection row per calendar day.
+  final DateTime reflectionDate;
 
-  /// The date the habit was missed (midnight-normalized, local time).
-  final DateTime missedDate;
+  /// JSON list of up to 2 reason keys (e.g. '["low_energy", "too_busy"]').
+  final String reasonKeys;
 
-  /// The selected reason from the taxonomy.
-  ///
-  /// One of: 'energy', 'time', 'forgot', 'motivation',
-  ///         'environment', 'other'
-  final String reason;
+  /// Custom free-text reason entered by the user in "My Reason".
+  final String? customText;
 
-  /// Optional follow-up answer for the reason-specific question.
-  /// Nullable — not all reason categories have a follow-up question.
+  /// The reason key that triggered the follow-up question (if any).
+  final String? followUpReasonKey;
+
+  /// The user's answer to the follow-up question (if any).
   final String? followUpAnswer;
 
-  /// When this reflection was created.
+  /// JSON list of habit IDs missed on this day (e.g. '[1, 2]').
+  final String missedHabitIds;
+
+  /// When this reflection was first created.
   final DateTime createdAt;
+
+  /// When this reflection was last updated.
+  final DateTime updatedAt;
   const HabitReflection({
     required this.id,
-    required this.habitId,
-    required this.missedDate,
-    required this.reason,
+    required this.reflectionDate,
+    required this.reasonKeys,
+    this.customText,
+    this.followUpReasonKey,
     this.followUpAnswer,
+    required this.missedHabitIds,
     required this.createdAt,
+    required this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['habit_id'] = Variable<int>(habitId);
-    map['missed_date'] = Variable<DateTime>(missedDate);
-    map['reason'] = Variable<String>(reason);
+    map['reflection_date'] = Variable<DateTime>(reflectionDate);
+    map['reason_keys'] = Variable<String>(reasonKeys);
+    if (!nullToAbsent || customText != null) {
+      map['custom_text'] = Variable<String>(customText);
+    }
+    if (!nullToAbsent || followUpReasonKey != null) {
+      map['follow_up_reason_key'] = Variable<String>(followUpReasonKey);
+    }
     if (!nullToAbsent || followUpAnswer != null) {
       map['follow_up_answer'] = Variable<String>(followUpAnswer);
     }
+    map['missed_habit_ids'] = Variable<String>(missedHabitIds);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
   HabitReflectionsCompanion toCompanion(bool nullToAbsent) {
     return HabitReflectionsCompanion(
       id: Value(id),
-      habitId: Value(habitId),
-      missedDate: Value(missedDate),
-      reason: Value(reason),
+      reflectionDate: Value(reflectionDate),
+      reasonKeys: Value(reasonKeys),
+      customText: customText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customText),
+      followUpReasonKey: followUpReasonKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(followUpReasonKey),
       followUpAnswer: followUpAnswer == null && nullToAbsent
           ? const Value.absent()
           : Value(followUpAnswer),
+      missedHabitIds: Value(missedHabitIds),
       createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
     );
   }
 
@@ -2394,11 +2498,16 @@ class HabitReflection extends DataClass implements Insertable<HabitReflection> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return HabitReflection(
       id: serializer.fromJson<int>(json['id']),
-      habitId: serializer.fromJson<int>(json['habitId']),
-      missedDate: serializer.fromJson<DateTime>(json['missedDate']),
-      reason: serializer.fromJson<String>(json['reason']),
+      reflectionDate: serializer.fromJson<DateTime>(json['reflectionDate']),
+      reasonKeys: serializer.fromJson<String>(json['reasonKeys']),
+      customText: serializer.fromJson<String?>(json['customText']),
+      followUpReasonKey: serializer.fromJson<String?>(
+        json['followUpReasonKey'],
+      ),
       followUpAnswer: serializer.fromJson<String?>(json['followUpAnswer']),
+      missedHabitIds: serializer.fromJson<String>(json['missedHabitIds']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -2406,43 +2515,65 @@ class HabitReflection extends DataClass implements Insertable<HabitReflection> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'habitId': serializer.toJson<int>(habitId),
-      'missedDate': serializer.toJson<DateTime>(missedDate),
-      'reason': serializer.toJson<String>(reason),
+      'reflectionDate': serializer.toJson<DateTime>(reflectionDate),
+      'reasonKeys': serializer.toJson<String>(reasonKeys),
+      'customText': serializer.toJson<String?>(customText),
+      'followUpReasonKey': serializer.toJson<String?>(followUpReasonKey),
       'followUpAnswer': serializer.toJson<String?>(followUpAnswer),
+      'missedHabitIds': serializer.toJson<String>(missedHabitIds),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
   HabitReflection copyWith({
     int? id,
-    int? habitId,
-    DateTime? missedDate,
-    String? reason,
+    DateTime? reflectionDate,
+    String? reasonKeys,
+    Value<String?> customText = const Value.absent(),
+    Value<String?> followUpReasonKey = const Value.absent(),
     Value<String?> followUpAnswer = const Value.absent(),
+    String? missedHabitIds,
     DateTime? createdAt,
+    DateTime? updatedAt,
   }) => HabitReflection(
     id: id ?? this.id,
-    habitId: habitId ?? this.habitId,
-    missedDate: missedDate ?? this.missedDate,
-    reason: reason ?? this.reason,
+    reflectionDate: reflectionDate ?? this.reflectionDate,
+    reasonKeys: reasonKeys ?? this.reasonKeys,
+    customText: customText.present ? customText.value : this.customText,
+    followUpReasonKey: followUpReasonKey.present
+        ? followUpReasonKey.value
+        : this.followUpReasonKey,
     followUpAnswer: followUpAnswer.present
         ? followUpAnswer.value
         : this.followUpAnswer,
+    missedHabitIds: missedHabitIds ?? this.missedHabitIds,
     createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
   HabitReflection copyWithCompanion(HabitReflectionsCompanion data) {
     return HabitReflection(
       id: data.id.present ? data.id.value : this.id,
-      habitId: data.habitId.present ? data.habitId.value : this.habitId,
-      missedDate: data.missedDate.present
-          ? data.missedDate.value
-          : this.missedDate,
-      reason: data.reason.present ? data.reason.value : this.reason,
+      reflectionDate: data.reflectionDate.present
+          ? data.reflectionDate.value
+          : this.reflectionDate,
+      reasonKeys: data.reasonKeys.present
+          ? data.reasonKeys.value
+          : this.reasonKeys,
+      customText: data.customText.present
+          ? data.customText.value
+          : this.customText,
+      followUpReasonKey: data.followUpReasonKey.present
+          ? data.followUpReasonKey.value
+          : this.followUpReasonKey,
       followUpAnswer: data.followUpAnswer.present
           ? data.followUpAnswer.value
           : this.followUpAnswer,
+      missedHabitIds: data.missedHabitIds.present
+          ? data.missedHabitIds.value
+          : this.missedHabitIds,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -2450,88 +2581,124 @@ class HabitReflection extends DataClass implements Insertable<HabitReflection> {
   String toString() {
     return (StringBuffer('HabitReflection(')
           ..write('id: $id, ')
-          ..write('habitId: $habitId, ')
-          ..write('missedDate: $missedDate, ')
-          ..write('reason: $reason, ')
+          ..write('reflectionDate: $reflectionDate, ')
+          ..write('reasonKeys: $reasonKeys, ')
+          ..write('customText: $customText, ')
+          ..write('followUpReasonKey: $followUpReasonKey, ')
           ..write('followUpAnswer: $followUpAnswer, ')
-          ..write('createdAt: $createdAt')
+          ..write('missedHabitIds: $missedHabitIds, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, habitId, missedDate, reason, followUpAnswer, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    reflectionDate,
+    reasonKeys,
+    customText,
+    followUpReasonKey,
+    followUpAnswer,
+    missedHabitIds,
+    createdAt,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is HabitReflection &&
           other.id == this.id &&
-          other.habitId == this.habitId &&
-          other.missedDate == this.missedDate &&
-          other.reason == this.reason &&
+          other.reflectionDate == this.reflectionDate &&
+          other.reasonKeys == this.reasonKeys &&
+          other.customText == this.customText &&
+          other.followUpReasonKey == this.followUpReasonKey &&
           other.followUpAnswer == this.followUpAnswer &&
-          other.createdAt == this.createdAt);
+          other.missedHabitIds == this.missedHabitIds &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
 }
 
 class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
   final Value<int> id;
-  final Value<int> habitId;
-  final Value<DateTime> missedDate;
-  final Value<String> reason;
+  final Value<DateTime> reflectionDate;
+  final Value<String> reasonKeys;
+  final Value<String?> customText;
+  final Value<String?> followUpReasonKey;
   final Value<String?> followUpAnswer;
+  final Value<String> missedHabitIds;
   final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
   const HabitReflectionsCompanion({
     this.id = const Value.absent(),
-    this.habitId = const Value.absent(),
-    this.missedDate = const Value.absent(),
-    this.reason = const Value.absent(),
+    this.reflectionDate = const Value.absent(),
+    this.reasonKeys = const Value.absent(),
+    this.customText = const Value.absent(),
+    this.followUpReasonKey = const Value.absent(),
     this.followUpAnswer = const Value.absent(),
+    this.missedHabitIds = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
   });
   HabitReflectionsCompanion.insert({
     this.id = const Value.absent(),
-    required int habitId,
-    required DateTime missedDate,
-    required String reason,
+    required DateTime reflectionDate,
+    required String reasonKeys,
+    this.customText = const Value.absent(),
+    this.followUpReasonKey = const Value.absent(),
     this.followUpAnswer = const Value.absent(),
+    required String missedHabitIds,
     this.createdAt = const Value.absent(),
-  }) : habitId = Value(habitId),
-       missedDate = Value(missedDate),
-       reason = Value(reason);
+    this.updatedAt = const Value.absent(),
+  }) : reflectionDate = Value(reflectionDate),
+       reasonKeys = Value(reasonKeys),
+       missedHabitIds = Value(missedHabitIds);
   static Insertable<HabitReflection> custom({
     Expression<int>? id,
-    Expression<int>? habitId,
-    Expression<DateTime>? missedDate,
-    Expression<String>? reason,
+    Expression<DateTime>? reflectionDate,
+    Expression<String>? reasonKeys,
+    Expression<String>? customText,
+    Expression<String>? followUpReasonKey,
     Expression<String>? followUpAnswer,
+    Expression<String>? missedHabitIds,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (habitId != null) 'habit_id': habitId,
-      if (missedDate != null) 'missed_date': missedDate,
-      if (reason != null) 'reason': reason,
+      if (reflectionDate != null) 'reflection_date': reflectionDate,
+      if (reasonKeys != null) 'reason_keys': reasonKeys,
+      if (customText != null) 'custom_text': customText,
+      if (followUpReasonKey != null) 'follow_up_reason_key': followUpReasonKey,
       if (followUpAnswer != null) 'follow_up_answer': followUpAnswer,
+      if (missedHabitIds != null) 'missed_habit_ids': missedHabitIds,
       if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
 
   HabitReflectionsCompanion copyWith({
     Value<int>? id,
-    Value<int>? habitId,
-    Value<DateTime>? missedDate,
-    Value<String>? reason,
+    Value<DateTime>? reflectionDate,
+    Value<String>? reasonKeys,
+    Value<String?>? customText,
+    Value<String?>? followUpReasonKey,
     Value<String?>? followUpAnswer,
+    Value<String>? missedHabitIds,
     Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
   }) {
     return HabitReflectionsCompanion(
       id: id ?? this.id,
-      habitId: habitId ?? this.habitId,
-      missedDate: missedDate ?? this.missedDate,
-      reason: reason ?? this.reason,
+      reflectionDate: reflectionDate ?? this.reflectionDate,
+      reasonKeys: reasonKeys ?? this.reasonKeys,
+      customText: customText ?? this.customText,
+      followUpReasonKey: followUpReasonKey ?? this.followUpReasonKey,
       followUpAnswer: followUpAnswer ?? this.followUpAnswer,
+      missedHabitIds: missedHabitIds ?? this.missedHabitIds,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -2541,20 +2708,29 @@ class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (habitId.present) {
-      map['habit_id'] = Variable<int>(habitId.value);
+    if (reflectionDate.present) {
+      map['reflection_date'] = Variable<DateTime>(reflectionDate.value);
     }
-    if (missedDate.present) {
-      map['missed_date'] = Variable<DateTime>(missedDate.value);
+    if (reasonKeys.present) {
+      map['reason_keys'] = Variable<String>(reasonKeys.value);
     }
-    if (reason.present) {
-      map['reason'] = Variable<String>(reason.value);
+    if (customText.present) {
+      map['custom_text'] = Variable<String>(customText.value);
+    }
+    if (followUpReasonKey.present) {
+      map['follow_up_reason_key'] = Variable<String>(followUpReasonKey.value);
     }
     if (followUpAnswer.present) {
       map['follow_up_answer'] = Variable<String>(followUpAnswer.value);
     }
+    if (missedHabitIds.present) {
+      map['missed_habit_ids'] = Variable<String>(missedHabitIds.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
     return map;
   }
@@ -2563,11 +2739,14 @@ class HabitReflectionsCompanion extends UpdateCompanion<HabitReflection> {
   String toString() {
     return (StringBuffer('HabitReflectionsCompanion(')
           ..write('id: $id, ')
-          ..write('habitId: $habitId, ')
-          ..write('missedDate: $missedDate, ')
-          ..write('reason: $reason, ')
+          ..write('reflectionDate: $reflectionDate, ')
+          ..write('reasonKeys: $reasonKeys, ')
+          ..write('customText: $customText, ')
+          ..write('followUpReasonKey: $followUpReasonKey, ')
           ..write('followUpAnswer: $followUpAnswer, ')
-          ..write('createdAt: $createdAt')
+          ..write('missedHabitIds: $missedHabitIds, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -2832,7 +3011,7 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
       isAlarmReminder: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_alarm_reminder'],
-      ) ?? false,
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -2873,7 +3052,9 @@ class Task extends DataClass implements Insertable<Task> {
   /// Whether the task has been completed.
   final bool isDone;
 
-  /// When true, the reminder fires as a full-screen alarm.
+  /// When true, the reminder fires as a full-screen alarm (AndroidScheduleMode
+  /// .alarmClock) rather than a soft inexact notification. Default false —
+  /// tasks without a due time are unaffected regardless of this flag.
   final bool isAlarmReminder;
 
   /// When this task was created.
@@ -2887,7 +3068,7 @@ class Task extends DataClass implements Insertable<Task> {
     this.categoryId,
     this.notes,
     required this.isDone,
-    this.isAlarmReminder = false,
+    required this.isAlarmReminder,
     required this.createdAt,
   });
   @override
@@ -2951,7 +3132,7 @@ class Task extends DataClass implements Insertable<Task> {
       categoryId: serializer.fromJson<int?>(json['categoryId']),
       notes: serializer.fromJson<String?>(json['notes']),
       isDone: serializer.fromJson<bool>(json['isDone']),
-      isAlarmReminder: serializer.fromJson<bool?>(json['isAlarmReminder']) ?? false,
+      isAlarmReminder: serializer.fromJson<bool>(json['isAlarmReminder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -3194,6 +3375,7 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('categoryId: $categoryId, ')
           ..write('notes: $notes, ')
           ..write('isDone: $isDone, ')
+          ..write('isAlarmReminder: $isAlarmReminder, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -3680,6 +3862,7 @@ typedef $$HabitsTableCreateCompanionBuilder =
       Value<String?> frequencyConfig,
       Value<bool> reminderEnabled,
       Value<String?> reminderTime,
+      Value<bool> isAlarmReminder,
       Value<int> sortOrder,
       Value<bool> isArchived,
       Value<DateTime> createdAt,
@@ -3695,6 +3878,7 @@ typedef $$HabitsTableUpdateCompanionBuilder =
       Value<String?> frequencyConfig,
       Value<bool> reminderEnabled,
       Value<String?> reminderTime,
+      Value<bool> isAlarmReminder,
       Value<int> sortOrder,
       Value<bool> isArchived,
       Value<DateTime> createdAt,
@@ -3736,26 +3920,6 @@ final class $$HabitsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _habitCompletionsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$HabitReflectionsTable, List<HabitReflection>>
-  _habitReflectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.habitReflections,
-    aliasName: 'habits__id__habit_reflections__habit_id',
-  );
-
-  $$HabitReflectionsTableProcessedTableManager get habitReflectionsRefs {
-    final manager = $$HabitReflectionsTableTableManager(
-      $_db,
-      $_db.habitReflections,
-    ).filter((f) => f.habitId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _habitReflectionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -3804,6 +3968,11 @@ class $$HabitsTableFilterComposer
 
   ColumnFilters<String> get reminderTime => $composableBuilder(
     column: $table.reminderTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAlarmReminder => $composableBuilder(
+    column: $table.isAlarmReminder,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3874,31 +4043,6 @@ class $$HabitsTableFilterComposer
     );
     return f(composer);
   }
-
-  Expression<bool> habitReflectionsRefs(
-    Expression<bool> Function($$HabitReflectionsTableFilterComposer f) f,
-  ) {
-    final $$HabitReflectionsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.habitReflections,
-      getReferencedColumn: (t) => t.habitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$HabitReflectionsTableFilterComposer(
-            $db: $db,
-            $table: $db.habitReflections,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$HabitsTableOrderingComposer
@@ -3942,6 +4086,11 @@ class $$HabitsTableOrderingComposer
 
   ColumnOrderings<String> get reminderTime => $composableBuilder(
     column: $table.reminderTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAlarmReminder => $composableBuilder(
+    column: $table.isAlarmReminder,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4027,6 +4176,11 @@ class $$HabitsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isAlarmReminder => $composableBuilder(
+    column: $table.isAlarmReminder,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
@@ -4088,31 +4242,6 @@ class $$HabitsTableAnnotationComposer
     );
     return f(composer);
   }
-
-  Expression<T> habitReflectionsRefs<T extends Object>(
-    Expression<T> Function($$HabitReflectionsTableAnnotationComposer a) f,
-  ) {
-    final $$HabitReflectionsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.habitReflections,
-      getReferencedColumn: (t) => t.habitId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$HabitReflectionsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.habitReflections,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$HabitsTableTableManager
@@ -4128,11 +4257,7 @@ class $$HabitsTableTableManager
           $$HabitsTableUpdateCompanionBuilder,
           (Habit, $$HabitsTableReferences),
           Habit,
-          PrefetchHooks Function({
-            bool categoryId,
-            bool habitCompletionsRefs,
-            bool habitReflectionsRefs,
-          })
+          PrefetchHooks Function({bool categoryId, bool habitCompletionsRefs})
         > {
   $$HabitsTableTableManager(_$AppDatabase db, $HabitsTable table)
     : super(
@@ -4155,6 +4280,7 @@ class $$HabitsTableTableManager
                 Value<String?> frequencyConfig = const Value.absent(),
                 Value<bool> reminderEnabled = const Value.absent(),
                 Value<String?> reminderTime = const Value.absent(),
+                Value<bool> isAlarmReminder = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -4168,6 +4294,7 @@ class $$HabitsTableTableManager
                 frequencyConfig: frequencyConfig,
                 reminderEnabled: reminderEnabled,
                 reminderTime: reminderTime,
+                isAlarmReminder: isAlarmReminder,
                 sortOrder: sortOrder,
                 isArchived: isArchived,
                 createdAt: createdAt,
@@ -4183,6 +4310,7 @@ class $$HabitsTableTableManager
                 Value<String?> frequencyConfig = const Value.absent(),
                 Value<bool> reminderEnabled = const Value.absent(),
                 Value<String?> reminderTime = const Value.absent(),
+                Value<bool> isAlarmReminder = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -4196,6 +4324,7 @@ class $$HabitsTableTableManager
                 frequencyConfig: frequencyConfig,
                 reminderEnabled: reminderEnabled,
                 reminderTime: reminderTime,
+                isAlarmReminder: isAlarmReminder,
                 sortOrder: sortOrder,
                 isArchived: isArchived,
                 createdAt: createdAt,
@@ -4208,16 +4337,11 @@ class $$HabitsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({
-                categoryId = false,
-                habitCompletionsRefs = false,
-                habitReflectionsRefs = false,
-              }) {
+              ({categoryId = false, habitCompletionsRefs = false}) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (habitCompletionsRefs) db.habitCompletions,
-                    if (habitReflectionsRefs) db.habitReflections,
                   ],
                   addJoins:
                       <
@@ -4274,27 +4398,6 @@ class $$HabitsTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (habitReflectionsRefs)
-                        await $_getPrefetchedData<
-                          Habit,
-                          $HabitsTable,
-                          HabitReflection
-                        >(
-                          currentTable: table,
-                          referencedTable: $$HabitsTableReferences
-                              ._habitReflectionsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$HabitsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).habitReflectionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.habitId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
                     ];
                   },
                 );
@@ -4315,11 +4418,7 @@ typedef $$HabitsTableProcessedTableManager =
       $$HabitsTableUpdateCompanionBuilder,
       (Habit, $$HabitsTableReferences),
       Habit,
-      PrefetchHooks Function({
-        bool categoryId,
-        bool habitCompletionsRefs,
-        bool habitReflectionsRefs,
-      })
+      PrefetchHooks Function({bool categoryId, bool habitCompletionsRefs})
     >;
 typedef $$HabitCompletionsTableCreateCompanionBuilder =
     HabitCompletionsCompanion Function({
@@ -4875,48 +4974,27 @@ typedef $$DailyReflectionsTableProcessedTableManager =
 typedef $$HabitReflectionsTableCreateCompanionBuilder =
     HabitReflectionsCompanion Function({
       Value<int> id,
-      required int habitId,
-      required DateTime missedDate,
-      required String reason,
+      required DateTime reflectionDate,
+      required String reasonKeys,
+      Value<String?> customText,
+      Value<String?> followUpReasonKey,
       Value<String?> followUpAnswer,
+      required String missedHabitIds,
       Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
     });
 typedef $$HabitReflectionsTableUpdateCompanionBuilder =
     HabitReflectionsCompanion Function({
       Value<int> id,
-      Value<int> habitId,
-      Value<DateTime> missedDate,
-      Value<String> reason,
+      Value<DateTime> reflectionDate,
+      Value<String> reasonKeys,
+      Value<String?> customText,
+      Value<String?> followUpReasonKey,
       Value<String?> followUpAnswer,
+      Value<String> missedHabitIds,
       Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
     });
-
-final class $$HabitReflectionsTableReferences
-    extends
-        BaseReferences<_$AppDatabase, $HabitReflectionsTable, HabitReflection> {
-  $$HabitReflectionsTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $HabitsTable _habitIdTable(_$AppDatabase db) =>
-      db.habits.createAlias('habit_reflections__habit_id__habits__id');
-
-  $$HabitsTableProcessedTableManager get habitId {
-    final $_column = $_itemColumn<int>('habit_id')!;
-
-    final manager = $$HabitsTableTableManager(
-      $_db,
-      $_db.habits,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_habitIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
 
 class $$HabitReflectionsTableFilterComposer
     extends Composer<_$AppDatabase, $HabitReflectionsTable> {
@@ -4932,13 +5010,23 @@ class $$HabitReflectionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get missedDate => $composableBuilder(
-    column: $table.missedDate,
+  ColumnFilters<DateTime> get reflectionDate => $composableBuilder(
+    column: $table.reflectionDate,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get reason => $composableBuilder(
-    column: $table.reason,
+  ColumnFilters<String> get reasonKeys => $composableBuilder(
+    column: $table.reasonKeys,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customText => $composableBuilder(
+    column: $table.customText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get followUpReasonKey => $composableBuilder(
+    column: $table.followUpReasonKey,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4947,33 +5035,20 @@ class $$HabitReflectionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get missedHabitIds => $composableBuilder(
+    column: $table.missedHabitIds,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 
-  $$HabitsTableFilterComposer get habitId {
-    final $$HabitsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.habitId,
-      referencedTable: $db.habits,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$HabitsTableFilterComposer(
-            $db: $db,
-            $table: $db.habits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$HabitReflectionsTableOrderingComposer
@@ -4990,13 +5065,23 @@ class $$HabitReflectionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get missedDate => $composableBuilder(
-    column: $table.missedDate,
+  ColumnOrderings<DateTime> get reflectionDate => $composableBuilder(
+    column: $table.reflectionDate,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get reason => $composableBuilder(
-    column: $table.reason,
+  ColumnOrderings<String> get reasonKeys => $composableBuilder(
+    column: $table.reasonKeys,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customText => $composableBuilder(
+    column: $table.customText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get followUpReasonKey => $composableBuilder(
+    column: $table.followUpReasonKey,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -5005,33 +5090,20 @@ class $$HabitReflectionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get missedHabitIds => $composableBuilder(
+    column: $table.missedHabitIds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$HabitsTableOrderingComposer get habitId {
-    final $$HabitsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.habitId,
-      referencedTable: $db.habits,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$HabitsTableOrderingComposer(
-            $db: $db,
-            $table: $db.habits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$HabitReflectionsTableAnnotationComposer
@@ -5046,44 +5118,41 @@ class $$HabitReflectionsTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get missedDate => $composableBuilder(
-    column: $table.missedDate,
+  GeneratedColumn<DateTime> get reflectionDate => $composableBuilder(
+    column: $table.reflectionDate,
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get reason =>
-      $composableBuilder(column: $table.reason, builder: (column) => column);
+  GeneratedColumn<String> get reasonKeys => $composableBuilder(
+    column: $table.reasonKeys,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get customText => $composableBuilder(
+    column: $table.customText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get followUpReasonKey => $composableBuilder(
+    column: $table.followUpReasonKey,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get followUpAnswer => $composableBuilder(
     column: $table.followUpAnswer,
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get missedHabitIds => $composableBuilder(
+    column: $table.missedHabitIds,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  $$HabitsTableAnnotationComposer get habitId {
-    final $$HabitsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.habitId,
-      referencedTable: $db.habits,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$HabitsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.habits,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$HabitReflectionsTableTableManager
@@ -5097,9 +5166,16 @@ class $$HabitReflectionsTableTableManager
           $$HabitReflectionsTableAnnotationComposer,
           $$HabitReflectionsTableCreateCompanionBuilder,
           $$HabitReflectionsTableUpdateCompanionBuilder,
-          (HabitReflection, $$HabitReflectionsTableReferences),
+          (
+            HabitReflection,
+            BaseReferences<
+              _$AppDatabase,
+              $HabitReflectionsTable,
+              HabitReflection
+            >,
+          ),
           HabitReflection,
-          PrefetchHooks Function({bool habitId})
+          PrefetchHooks Function()
         > {
   $$HabitReflectionsTableTableManager(
     _$AppDatabase db,
@@ -5117,86 +5193,51 @@ class $$HabitReflectionsTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<int> habitId = const Value.absent(),
-                Value<DateTime> missedDate = const Value.absent(),
-                Value<String> reason = const Value.absent(),
+                Value<DateTime> reflectionDate = const Value.absent(),
+                Value<String> reasonKeys = const Value.absent(),
+                Value<String?> customText = const Value.absent(),
+                Value<String?> followUpReasonKey = const Value.absent(),
                 Value<String?> followUpAnswer = const Value.absent(),
+                Value<String> missedHabitIds = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
               }) => HabitReflectionsCompanion(
                 id: id,
-                habitId: habitId,
-                missedDate: missedDate,
-                reason: reason,
+                reflectionDate: reflectionDate,
+                reasonKeys: reasonKeys,
+                customText: customText,
+                followUpReasonKey: followUpReasonKey,
                 followUpAnswer: followUpAnswer,
+                missedHabitIds: missedHabitIds,
                 createdAt: createdAt,
+                updatedAt: updatedAt,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required int habitId,
-                required DateTime missedDate,
-                required String reason,
+                required DateTime reflectionDate,
+                required String reasonKeys,
+                Value<String?> customText = const Value.absent(),
+                Value<String?> followUpReasonKey = const Value.absent(),
                 Value<String?> followUpAnswer = const Value.absent(),
+                required String missedHabitIds,
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
               }) => HabitReflectionsCompanion.insert(
                 id: id,
-                habitId: habitId,
-                missedDate: missedDate,
-                reason: reason,
+                reflectionDate: reflectionDate,
+                reasonKeys: reasonKeys,
+                customText: customText,
+                followUpReasonKey: followUpReasonKey,
                 followUpAnswer: followUpAnswer,
+                missedHabitIds: missedHabitIds,
                 createdAt: createdAt,
+                updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$HabitReflectionsTableReferences(db, table, e),
-                ),
-              )
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
-          prefetchHooksCallback: ({habitId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (habitId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.habitId,
-                                referencedTable:
-                                    $$HabitReflectionsTableReferences
-                                        ._habitIdTable(db),
-                                referencedColumn:
-                                    $$HabitReflectionsTableReferences
-                                        ._habitIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
-
-                    return state;
-                  },
-              getPrefetchedDataCallback: (items) async {
-                return [];
-              },
-            );
-          },
+          prefetchHooksCallback: null,
         ),
       );
 }
@@ -5211,9 +5252,12 @@ typedef $$HabitReflectionsTableProcessedTableManager =
       $$HabitReflectionsTableAnnotationComposer,
       $$HabitReflectionsTableCreateCompanionBuilder,
       $$HabitReflectionsTableUpdateCompanionBuilder,
-      (HabitReflection, $$HabitReflectionsTableReferences),
+      (
+        HabitReflection,
+        BaseReferences<_$AppDatabase, $HabitReflectionsTable, HabitReflection>,
+      ),
       HabitReflection,
-      PrefetchHooks Function({bool habitId})
+      PrefetchHooks Function()
     >;
 typedef $$TasksTableCreateCompanionBuilder =
     TasksCompanion Function({
@@ -5225,6 +5269,7 @@ typedef $$TasksTableCreateCompanionBuilder =
       Value<int?> categoryId,
       Value<String?> notes,
       Value<bool> isDone,
+      Value<bool> isAlarmReminder,
       Value<DateTime> createdAt,
     });
 typedef $$TasksTableUpdateCompanionBuilder =
@@ -5237,6 +5282,7 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<int?> categoryId,
       Value<String?> notes,
       Value<bool> isDone,
+      Value<bool> isAlarmReminder,
       Value<DateTime> createdAt,
     });
 
@@ -5302,6 +5348,11 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<bool> get isDone => $composableBuilder(
     column: $table.isDone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAlarmReminder => $composableBuilder(
+    column: $table.isAlarmReminder,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5378,6 +5429,11 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isAlarmReminder => $composableBuilder(
+    column: $table.isAlarmReminder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -5436,6 +5492,11 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<bool> get isDone =>
       $composableBuilder(column: $table.isDone, builder: (column) => column);
+
+  GeneratedColumn<bool> get isAlarmReminder => $composableBuilder(
+    column: $table.isAlarmReminder,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -5500,6 +5561,7 @@ class $$TasksTableTableManager
                 Value<int?> categoryId = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isDone = const Value.absent(),
+                Value<bool> isAlarmReminder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => TasksCompanion(
                 id: id,
@@ -5510,6 +5572,7 @@ class $$TasksTableTableManager
                 categoryId: categoryId,
                 notes: notes,
                 isDone: isDone,
+                isAlarmReminder: isAlarmReminder,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -5522,6 +5585,7 @@ class $$TasksTableTableManager
                 Value<int?> categoryId = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isDone = const Value.absent(),
+                Value<bool> isAlarmReminder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => TasksCompanion.insert(
                 id: id,
@@ -5532,6 +5596,7 @@ class $$TasksTableTableManager
                 categoryId: categoryId,
                 notes: notes,
                 isDone: isDone,
+                isAlarmReminder: isAlarmReminder,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

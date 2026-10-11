@@ -155,4 +155,14 @@ final class AppSizes {
   // ---------------------------------------------------------------------------
 
   static const double weeklyHeatmapCellSize = 28;
+
+  // ---------------------------------------------------------------------------
+  // Pause & Reflect v2
+  // ---------------------------------------------------------------------------
+
+  static const double pebbleHeight = 44;
+  static const double orbSize = 40;
+  static const double orbSizeSmall = 20;
+  static const double segmentHeight = 40;
+  static const double stonesStripMinHeight = 72;
 }

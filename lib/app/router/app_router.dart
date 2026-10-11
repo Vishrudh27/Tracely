@@ -243,7 +243,7 @@ final class AppRouter {
       // Shell route wraps Dashboard, Habits, Tasks, Statistics with bottom nav
       ShellRoute(
         pageBuilder: (context, state, child) => CustomTransitionPage(
-          key: state.pageKey,
+          key: const ValueKey('tracely-shell-page'),
           child: TracelyShell(child: child),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);

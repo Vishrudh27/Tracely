@@ -40,6 +40,10 @@ extension DateExtensions on DateTime {
   /// Used when storing completion dates — we only care about the day, not time.
   DateTime get startOfDay => DateTime(year, month, day);
 
+  /// Key in 'YYYY-MM-DD' format for preference lookups, map keys, and gate tracking.
+  String get dateKey =>
+      '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+
   /// This date shifted by [days] calendar days, still at local midnight.
   ///
   /// Prefer this over `add(Duration(days: n))`, which adds 24-hour blocks and

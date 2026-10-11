@@ -1,80 +1,116 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Controls whether the Daily Opening Ritual (ReflectionScreen) should
-/// be shown on the current app open.
+import '../../core/extensions/date_extensions.dart';
+
+/// Controls gating for the Daily Opening Ritual (ReflectionScreen)
+/// and Pause & Reflect v2 (auto-open and skipped-date registry).
 ///
 /// Rules:
-/// 1. Shown on the first app open of each calendar day, at any hour.
-/// 2. Shown at most once per calendar day.
-/// 3. Always skippable — the user is never blocked.
-///
-/// The gate used to also require `hour < 12`, which meant anyone whose first
-/// open of the day fell after noon never saw the ritual — or the quote — at
-/// all that day. The once-per-day rule alone gives the ritual its meaning.
-///
-/// Uses SharedPreferences for persistence so the gate check is fast
-/// and doesn't require a database query at router init time.
+/// 1. Daily Opening Ritual is shown at most once per calendar day.
+/// 2. Pause & Reflect auto-opens at most once per calendar day (when morningAfter state).
+/// 3. Skipped prompt cards are tracked per calendar date so dismissing via "Skip" persists.
 class ReflectionGateService {
   static const _kShownDateKey = 'reflection_gate_shown_date';
-  static const _kPauseReflectDateKey = 'pause_reflect_shown_date';
+  static const _kAutoOpenOfferedDateKey = 'pause_reflect_auto_open_offered_date';
+  static const _kSkippedDatesKey = 'pause_reflect_skipped_dates';
+
+  // ---------------------------------------------------------------------------
+  // Daily Opening Ritual (ReflectionScreen)
+  // ---------------------------------------------------------------------------
 
   /// Returns true if the ReflectionScreen should be shown right now.
-  ///
-  /// True when the ritual has not yet been shown on today's calendar date.
-  /// Never throws — if preferences are unreadable the ritual is skipped
-  /// rather than blocking startup.
   static Future<bool> shouldShowReflection() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastShown = prefs.getString(_kShownDateKey);
-      return lastShown != _dateKey(DateTime.now());
+      return lastShown != DateTime.now().dateKey;
     } catch (_) {
       return false;
     }
   }
 
   /// Mark the ReflectionScreen as shown for today.
-  ///
-  /// Call this as soon as the screen begins its entrance animation,
-  /// not when Continue is pressed (to prevent re-showing on back nav).
   static Future<void> markShown() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kShownDateKey, _dateKey(DateTime.now()));
+      await prefs.setString(_kShownDateKey, DateTime.now().dateKey);
     } catch (_) {
       // Worst case the ritual shows again on the next open.
     }
   }
 
-  /// Returns true if the Pause & Reflect sheet should be offered today.
-  ///
-  /// Tracked here rather than by looking for a reflection row, because
-  /// dismissing the sheet with "Not now" writes no row — so a row-based gate
-  /// let the sheet reappear on the next app open the same day.
-  static Future<bool> shouldShowPauseAndReflect() async {
+  // ---------------------------------------------------------------------------
+  // Pause & Reflect v2: Auto-Open Gate
+  // ---------------------------------------------------------------------------
+
+  /// Returns true if the Pause & Reflect sheet has already been auto-opened today.
+  static Future<bool> hasAutoOpenBeenOfferedToday(DateTime today) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final lastShown = prefs.getString(_kPauseReflectDateKey);
-      return lastShown != _dateKey(DateTime.now());
+      final lastOffered = prefs.getString(_kAutoOpenOfferedDateKey);
+      return lastOffered == today.dateKey;
     } catch (_) {
       return false;
     }
   }
 
-  /// Mark the Pause & Reflect sheet as offered for today.
-  ///
-  /// Call this when the sheet is presented, not when it is answered — being
-  /// asked is what consumes the day's prompt.
-  static Future<void> markPauseAndReflectShown() async {
+  /// Mark the Pause & Reflect sheet as auto-opened for [today].
+  static Future<void> markAutoOpenOffered(DateTime today) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kPauseReflectDateKey, _dateKey(DateTime.now()));
+      await prefs.setString(_kAutoOpenOfferedDateKey, today.dateKey);
+    } catch (_) {}
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pause & Reflect v2: Skipped Dates
+  // ---------------------------------------------------------------------------
+
+  /// Returns true if the user explicitly skipped reflection for [date].
+  static Future<bool> isDateSkipped(DateTime date) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final skippedList = prefs.getStringList(_kSkippedDatesKey) ?? [];
+      return skippedList.contains(date.dateKey);
     } catch (_) {
-      // Worst case the sheet is offered again on the next open.
+      return false;
     }
   }
 
-  /// Builds an ISO-like date string for today: "YYYY-MM-DD".
-  static String _dateKey(DateTime date) =>
-      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  /// Mark [date] as skipped by the user via the prompt card.
+  static Future<void> markDateSkipped(DateTime date) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final skippedList =
+          (prefs.getStringList(_kSkippedDatesKey) ?? []).toSet();
+      skippedList.add(date.dateKey);
+      await prefs.setStringList(_kSkippedDatesKey, skippedList.toList());
+    } catch (_) {}
+  }
+
+  /// Clear the skipped status for [date] (e.g. if the user subsequently logs it).
+  static Future<void> clearDateSkipped(DateTime date) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final skippedList =
+          (prefs.getStringList(_kSkippedDatesKey) ?? []).toSet();
+      if (skippedList.remove(date.dateKey)) {
+        await prefs.setStringList(_kSkippedDatesKey, skippedList.toList());
+      }
+    } catch (_) {}
+  }
+
+  // ---------------------------------------------------------------------------
+  // Legacy / Test Compatibility Helpers
+  // ---------------------------------------------------------------------------
+
+  /// Backward-compatible alias for checking if auto-open is available today.
+  static Future<bool> shouldShowPauseAndReflect() async {
+    return !(await hasAutoOpenBeenOfferedToday(DateTime.now()));
+  }
+
+  /// Backward-compatible alias for marking auto-open offered for today.
+  static Future<void> markPauseAndReflectShown() async {
+    await markAutoOpenOffered(DateTime.now());
+  }
 }

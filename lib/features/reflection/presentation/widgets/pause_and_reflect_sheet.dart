@@ -1,168 +1,43 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/theme.dart';
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_extensions.dart';
 import '../../../../core/providers/current_date_provider.dart';
-import '../../../../data/services/database_service.dart';
 import '../../../../data/models/habit_models.dart';
+import '../../../../data/services/database_service.dart';
+import '../../../../data/services/reflection_gate_service.dart';
+import 'my_reason_card.dart';
+import 'reason_category_card.dart';
+import 'reflection_orb.dart';
+import 'reflection_taxonomy.dart';
+import 'stones_strip.dart';
 
-// ---------------------------------------------------------------------------
-// Data types
-// ---------------------------------------------------------------------------
-
-/// A single selectable reason card within a category.
-class _ReasonItem {
-  const _ReasonItem({required this.label, required this.key});
-  final String label;
-  final String key;
-}
-
-/// A top-level reason category.
-class _ReasonCategory {
-  const _ReasonCategory({
-    required this.key,
-    required this.icon,
-    required this.label,
-    required this.reasons,
-  });
-  final String key;
-  final IconData icon;
-  final String label;
-  final List<_ReasonItem> reasons;
-}
-
-// ---------------------------------------------------------------------------
-// Static data (reason taxonomy — per §4.5)
-// ---------------------------------------------------------------------------
-
-const _kCategories = <_ReasonCategory>[
-  _ReasonCategory(
-    key: 'energy',
-    icon: Icons.bedtime_outlined,
-    label: 'Energy',
-    reasons: [
-      _ReasonItem(label: 'Low Energy', key: 'low_energy'),
-      _ReasonItem(label: 'Poor Sleep', key: 'poor_sleep'),
-      _ReasonItem(label: 'Felt Sick', key: 'felt_sick'),
-      _ReasonItem(label: 'Burned Out', key: 'burned_out'),
-    ],
-  ),
-  _ReasonCategory(
-    key: 'time',
-    icon: Icons.schedule_outlined,
-    label: 'Time',
-    reasons: [
-      _ReasonItem(label: 'Too Busy', key: 'too_busy'),
-      _ReasonItem(label: 'Unexpected Work', key: 'unexpected_work'),
-      _ReasonItem(label: 'Meetings', key: 'meetings'),
-      _ReasonItem(label: 'Family', key: 'family'),
-    ],
-  ),
-  _ReasonCategory(
-    key: 'mind',
-    icon: Icons.psychology_outlined,
-    label: 'Mind',
-    reasons: [
-      _ReasonItem(label: 'Lost Motivation', key: 'lost_motivation'),
-      _ReasonItem(label: 'Procrastinated', key: 'procrastinated'),
-      _ReasonItem(label: 'Forgot', key: 'forgot'),
-      _ReasonItem(label: 'Overwhelmed', key: 'felt_overwhelmed'),
-      _ReasonItem(label: "Couldn't Focus", key: 'couldnt_focus'),
-    ],
-  ),
-  _ReasonCategory(
-    key: 'environment',
-    icon: Icons.pin_drop_outlined,
-    label: 'Environment',
-    reasons: [
-      _ReasonItem(label: 'Traveling', key: 'traveling'),
-      _ReasonItem(label: 'Weather', key: 'weather'),
-      _ReasonItem(label: 'No Equipment', key: 'no_equipment'),
-      _ReasonItem(label: 'Away From Home', key: 'outside_home'),
-    ],
-  ),
-  _ReasonCategory(
-    key: 'personal',
-    icon: Icons.self_improvement_outlined,
-    label: 'Personal',
-    reasons: [
-      _ReasonItem(label: 'Needed Rest', key: 'needed_rest'),
-      _ReasonItem(label: 'Mental Break', key: 'mental_break'),
-      _ReasonItem(label: 'Personal Event', key: 'personal_event'),
-      _ReasonItem(label: 'Emergency', key: 'emergency'),
-    ],
-  ),
-];
-
-// ---------------------------------------------------------------------------
-// Follow-up question lookup (per §4.5 table)
-// ---------------------------------------------------------------------------
-
-class _FollowUp {
-  const _FollowUp({required this.question, required this.options});
-  final String question;
-  final List<String> options;
-}
-
-const _kFollowUpMap = <String, _FollowUp>{
-  'low_energy': _FollowUp(
-    question: 'How was your energy?',
-    options: ['Great', 'Okay', 'Very Low'],
-  ),
-  'poor_sleep': _FollowUp(
-    question: 'How did you sleep?',
-    options: ['Badly', 'Okay', 'Well'],
-  ),
-  'too_busy': _FollowUp(
-    question: 'What kept you busy?',
-    options: ['Work', 'College', 'Family', 'Other'],
-  ),
-  'lost_motivation': _FollowUp(
-    question: 'Has this been going on?',
-    options: ['Just today', 'A few days', 'A while'],
-  ),
-  'felt_overwhelmed': _FollowUp(
-    question: 'Was it habit-related?',
-    options: ['Yes', 'No', 'Not sure'],
-  ),
-};
-
-/// Returns the first follow-up question for any trigger key in [selectedKeys],
-/// or null if none of the selected keys have a follow-up.
-_FollowUp? _resolveFollowUp(List<String> selectedKeys) {
-  for (final key in selectedKeys) {
-    if (_kFollowUpMap.containsKey(key)) return _kFollowUpMap[key];
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// PauseAndReflectSheet
-// ---------------------------------------------------------------------------
-
-/// The Pause & Reflect modal bottom sheet (§4.5).
-///
-/// Triggered from DashboardScreen when the user opens the app the morning
-/// after missing habits. Presented at most once per day.
+/// Modal bottom sheet orchestrating Pause & Reflect v2.
 ///
 /// Features:
-/// - 5 reason categories with soft card chips
-/// - 2-selection max (FIFO deselect when a 3rd is chosen)
-/// - Conditional follow-up question based on the first trigger reason
-/// - Custom free-text "My Reason" input
-/// - Staggered card entrance animation
-/// - "Not now" dismiss with zero friction
-///
-/// Data is persisted to HabitReflections table via ReflectionDao.
+/// - One reflection row per day (upsert on [targetDate]).
+/// - Max 2 reasons; choosing a 3rd removes the oldest FIFO.
+/// - Inline contextual follow-up block within triggering category.
+/// - Optional "My Reason" free-text field.
+/// - Pre-fills existing reflection if already saved for [targetDate].
+/// - Pinned header, scrolling staggered categories, and pinned footer.
 class PauseAndReflectSheet extends ConsumerStatefulWidget {
-  const PauseAndReflectSheet._({required this.missedHabits});
+  const PauseAndReflectSheet._({
+    required this.targetDate,
+    required this.missedHabits,
+  });
 
+  final DateTime targetDate;
   final List<HabitWithCompletion> missedHabits;
 
-  /// Show the sheet. Returns when the user dismisses or submits.
+  /// Show the bottom sheet for [targetDate].
   static Future<void> show({
     required BuildContext context,
+    required DateTime targetDate,
     required List<HabitWithCompletion> missedHabits,
   }) {
     return showModalBottomSheet<void>(
@@ -170,7 +45,10 @@ class PauseAndReflectSheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: AppColors.textPrimary.withValues(alpha: 0.35),
-      builder: (_) => PauseAndReflectSheet._(missedHabits: missedHabits),
+      builder: (_) => PauseAndReflectSheet._(
+        targetDate: targetDate,
+        missedHabits: missedHabits,
+      ),
     );
   }
 
@@ -181,565 +59,506 @@ class PauseAndReflectSheet extends ConsumerStatefulWidget {
 
 class _PauseAndReflectSheetState extends ConsumerState<PauseAndReflectSheet>
     with SingleTickerProviderStateMixin {
-  // ----- Animation ----------------------------------------------------------
-
-  late final AnimationController _controller;
-
-  // ----- Selection state ----------------------------------------------------
-
-  /// Selected reason item keys (max 2, FIFO: first in, first out).
   final List<String> _selectedKeys = [];
-
-  /// Custom free-text reason entered by the user.
+  String? _activeFollowUpReasonKey;
+  String? _selectedFollowUpAnswer;
   final TextEditingController _customTextController = TextEditingController();
 
-  /// Currently selected follow-up answer (if a follow-up is shown).
-  String? _selectedFollowUp;
+  late final AnimationController _staggerController;
+  late final List<Animation<double>> _cardFades;
+  late final List<Animation<double>> _cardSlides;
 
+  bool _isLoading = true;
   bool _isSaving = false;
-
-  // ----- Derived state ------------------------------------------------------
-
-  /// Follow-up question to display, or null if none apply.
-  _FollowUp? get _activeFollowUp => _resolveFollowUp(_selectedKeys);
+  bool _hasExistingReflection = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _staggerController = AnimationController(
       vsync: this,
       duration: AppDurations.custom(700),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.forward();
+
+    // 5 staggered intervals for the 5 category cards
+    _cardFades = List.generate(5, (i) {
+      final start = (i * 0.12).clamp(0.0, 0.70);
+      final end = (start + 0.30).clamp(0.0, 1.0);
+      return CurvedAnimation(
+        parent: _staggerController,
+        curve: Interval(start, end, curve: AppCurves.easeOut),
+      );
     });
+
+    _cardSlides = List.generate(5, (i) {
+      final start = (i * 0.12).clamp(0.0, 0.70);
+      final end = (start + 0.35).clamp(0.0, 1.0);
+      return Tween<double>(begin: 16, end: 0).animate(
+        CurvedAnimation(
+          parent: _staggerController,
+          curve: Interval(start, end, curve: AppCurves.easeOutCubic),
+        ),
+      );
+    });
+
+    _loadExistingReflection();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _staggerController.dispose();
     _customTextController.dispose();
     super.dispose();
   }
 
-  // ---------------------------------------------------------------------------
-  // Selection logic
-  // ---------------------------------------------------------------------------
-
-  void _toggleReason(String key) {
-    setState(() {
-      if (_selectedKeys.contains(key)) {
-        _selectedKeys.remove(key);
-      } else {
-        // Max 2 selections — FIFO: remove oldest if at capacity
-        if (_selectedKeys.length >= 2) {
-          _selectedKeys.removeAt(0); // remove the first (oldest) selection
-        }
-        _selectedKeys.add(key);
-      }
-      // Reset follow-up answer if selection changes
-      _selectedFollowUp = null;
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Persistence
-  // ---------------------------------------------------------------------------
-
-  Future<void> _submit() async {
-    if (_isSaving) return;
-    setState(() => _isSaving = true);
-
+  Future<void> _loadExistingReflection() async {
     try {
       final db = ref.read(appDatabaseProvider);
-      final today = ref.read(currentDateProvider);
-      final yesterday = today.addDays(-1);
+      final existing =
+          await db.reflectionDao.getReflectionForDate(widget.targetDate);
 
-      final customText = _customTextController.text.trim();
+      if (mounted && existing != null) {
+        _hasExistingReflection = true;
+        try {
+          final keys =
+              (jsonDecode(existing.reasonKeys) as List).cast<String>();
+          _selectedKeys.addAll(keys.take(2));
+        } catch (_) {}
 
-      // One row per reason so Statistics can group on an atomic key. A joined
-      // string made every distinct combination read as its own reason.
-      final reasons = <({String key, String? answer})>[
-        for (final key in _selectedKeys) (key: key, answer: _selectedFollowUp),
-        if (customText.isNotEmpty) (key: 'custom', answer: customText),
-      ];
+        if (existing.customText != null) {
+          _customTextController.text = existing.customText!;
+        }
 
-      if (reasons.isEmpty) return;
-
-      for (final habit in widget.missedHabits) {
-        for (final reason in reasons) {
-          await db.reflectionDao.createHabitReflection(
-            habitId: habit.habitId,
-            missedDate: yesterday,
-            reason: reason.key,
-            followUpAnswer: reason.answer,
-          );
+        final resolved = resolveFollowUp(_selectedKeys);
+        if (resolved != null &&
+            existing.followUpReasonKey == resolved.triggerReasonKey) {
+          _activeFollowUpReasonKey = existing.followUpReasonKey;
+          _selectedFollowUpAnswer = existing.followUpAnswer;
+        } else if (resolved != null) {
+          _activeFollowUpReasonKey = resolved.triggerReasonKey;
+          _selectedFollowUpAnswer = null;
         }
       }
     } catch (_) {
-      // Non-fatal — reflection failure never blocks the user
+      // If load fails, sheet still functions cleanly in empty state
     } finally {
       if (mounted) {
-        Navigator.of(context).pop();
+        setState(() => _isLoading = false);
+        _staggerController.forward();
       }
     }
   }
 
-  void _dismiss() => Navigator.of(context).pop();
+  void _onPebbleTapped(String reasonKey) {
+    setState(() {
+      if (_selectedKeys.contains(reasonKey)) {
+        _selectedKeys.remove(reasonKey);
+      } else {
+        // Enforce max 2: choosing a 3rd drops oldest FIFO
+        if (_selectedKeys.length >= 2) {
+          _selectedKeys.removeAt(0);
+        }
+        _selectedKeys.add(reasonKey);
+      }
+      _syncFollowUp();
+    });
+  }
 
-  // ---------------------------------------------------------------------------
-  // Build
-  // ---------------------------------------------------------------------------
+  void _removeKey(String key) {
+    setState(() {
+      _selectedKeys.remove(key);
+      _syncFollowUp();
+    });
+  }
+
+  void _syncFollowUp() {
+    final resolved = resolveFollowUp(_selectedKeys);
+    if (resolved == null) {
+      _activeFollowUpReasonKey = null;
+      _selectedFollowUpAnswer = null;
+      return;
+    }
+
+    // Keep answer only if the trigger key remains unchanged
+    if (resolved.triggerReasonKey == _activeFollowUpReasonKey) {
+      // Keep _selectedFollowUpAnswer
+    } else {
+      _activeFollowUpReasonKey = resolved.triggerReasonKey;
+      _selectedFollowUpAnswer = null;
+    }
+  }
+
+  bool get _canContinue {
+    return _selectedKeys.isNotEmpty ||
+        _customTextController.text.trim().isNotEmpty;
+  }
+
+  Future<void> _submit() async {
+    if (_isSaving || !_canContinue) return;
+    setState(() => _isSaving = true);
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    try {
+      final db = ref.read(appDatabaseProvider);
+      final customText = _customTextController.text.trim();
+
+      await db.reflectionDao.upsertReflection(
+        reflectionDate: widget.targetDate,
+        reasonKeys: _selectedKeys,
+        customText: customText.isNotEmpty ? customText : null,
+        followUpReasonKey:
+            _selectedFollowUpAnswer != null ? _activeFollowUpReasonKey : null,
+        followUpAnswer: _selectedFollowUpAnswer,
+        missedHabitIds: widget.missedHabits.map((h) => h.habitId).toList(),
+      );
+
+      // Clear skipped registry on successful save
+      await ReflectionGateService.clearDateSkipped(widget.targetDate);
+
+      if (mounted) {
+        navigator.pop();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Noted. Tomorrow starts fresh.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Could not save reflection. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearReflection() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    try {
+      final db = ref.read(appDatabaseProvider);
+      await db.reflectionDao.deleteReflectionForDate(widget.targetDate);
+
+      if (mounted) {
+        navigator.pop();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Reflection cleared.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Could not clear reflection. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final keyboardInset = media.viewInsets.bottom;
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    final sheetHeight =
+        (mediaQuery.size.height * 0.85).clamp(0.0, availableHeight);
 
-    // Shrink to whatever the keyboard leaves behind, otherwise the free-text
-    // field sits underneath it with no way to scroll into view.
-    final preferred = media.size.height * 0.82;
-    final available = media.size.height - keyboardInset - media.padding.top;
+    final today = ref.watch(currentDateProvider);
+    final isTargetToday = widget.targetDate.isSameDay(today);
+
+    final activeFollowUp = resolveFollowUp(_selectedKeys);
+    final isClearing = _hasExistingReflection && !_canContinue;
+    final isActionEnabled = _canContinue || isClearing;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: keyboardInset),
+      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
       child: Container(
-        height: preferred < available ? preferred : available,
+        height: sheetHeight,
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppRadius.xl),
-          ),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
         ),
         child: Column(
           children: [
-            // Drag handle
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.md),
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
+          // -------------------------------------------------------------------
+          // ZONE 1: PINNED HEADER
+          // -------------------------------------------------------------------
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: Column(
+              children: [
+                const SizedBox(height: AppSpacing.md),
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: AppSizes.bottomSheetHandleWidth,
+                    height: AppSizes.bottomSheetHandleHeight,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(AppRadius.xs),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-
-            // Header row with "Not now" dismiss
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xl,
-                vertical: AppSpacing.sm,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _dismiss,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.xs,
+                // Top header actions: "Clear reflection" (if pre-existing) and "Not now"
+                Row(
+                  mainAxisAlignment: _hasExistingReflection
+                      ? MainAxisAlignment.spaceBetween
+                      : MainAxisAlignment.end,
+                  children: [
+                    if (_hasExistingReflection)
+                      TextButton(
+                        onPressed: _isSaving ? null : _clearReflection,
+                        child: Text(
+                          'Clear reflection',
+                          style: context.textTheme.labelMedium?.copyWith(
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Not now',
+                        style: context.textTheme.labelMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
-                    child: const Text('Not now'),
+                  ],
+                ),
+                // Centered Orb (progress = selectedCount / 2)
+                ReflectionOrb(
+                  progress: _selectedKeys.length / 2,
+                  size: AppSizes.orbSize,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Title
+                Text(
+                  isTargetToday
+                      ? 'What got in the way today?'
+                      : 'What got in the way yesterday?',
+                  textAlign: TextAlign.center,
+                  style: context.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                // Subtitle
+                Text(
+                  'No judgment. Just noticing.',
+                  textAlign: TextAlign.center,
+                  style: context.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                // Optional context chips for missed habits
+                if (widget.missedHabits.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        Text(
+                          'Left for another day: ',
+                          style: context.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        for (final habit in widget.missedHabits) ...[
+                          Container(
+                            margin: const EdgeInsets.only(right: AppSpacing.xs),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: AppRadius.chip,
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: AppSizes.divider,
+                              ),
+                            ),
+                            child: Text(
+                              habit.name,
+                              style: context.textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                // Stones Strip
+                StonesStrip(
+                  selectedKeys: _selectedKeys,
+                  onRemove: _removeKey,
+                ),
+              ],
+            ),
+          ),
+
+          // -------------------------------------------------------------------
+          // ZONE 2: SCROLLING MIDDLE
+          // -------------------------------------------------------------------
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.lg,
+                      AppSpacing.xl,
+                      AppSpacing.xxl,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0;
+                            i < kReflectionCategories.length;
+                            i++) ...[
+                          if (i > 0) const SizedBox(height: AppSpacing.lg),
+                          AnimatedBuilder(
+                            animation: _staggerController,
+                            builder: (context, child) {
+                              return Opacity(
+                                opacity: _cardFades[i].value,
+                                child: Transform.translate(
+                                  offset: Offset(0, _cardSlides[i].value),
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: ReasonCategoryCard(
+                              category: kReflectionCategories[i],
+                              selectedKeys: _selectedKeys,
+                              onPebbleTapped: _onPebbleTapped,
+                              activeFollowUp: activeFollowUp,
+                              selectedFollowUpAnswer: _selectedFollowUpAnswer,
+                              onFollowUpAnswerChanged: (ans) {
+                                setState(() => _selectedFollowUpAnswer = ans);
+                              },
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                        MyReasonCard(
+                          controller: _customTextController,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+
+          // -------------------------------------------------------------------
+          // ZONE 3: PINNED FOOTER
+          // -------------------------------------------------------------------
+          SafeArea(
+            top: false,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: AppColors.border,
+                    width: AppSizes.divider,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.md,
+                AppSpacing.xl,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: AppSizes.buttonHeight,
+                    child: ElevatedButton(
+                      onPressed: isActionEnabled && !_isSaving
+                          ? (isClearing ? _clearReflection : _submit)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _canContinue
+                            ? AppColors.primary
+                            : AppColors.surfaceVariant,
+                        foregroundColor: _canContinue
+                            ? AppColors.textOnPrimary
+                            : (isClearing
+                                ? AppColors.error
+                                : AppColors.textDisabled),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadius.button,
+                        ),
+                      ),
+                      child: _isSaving
+                          ? SizedBox(
+                              width: AppSizes.iconMd,
+                              height: AppSizes.iconMd,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _canContinue
+                                    ? AppColors.textOnPrimary
+                                    : AppColors.error,
+                              ),
+                            )
+                          : Text(
+                              isClearing ? 'Clear reflection' : 'Continue',
+                              style: context.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: _canContinue
+                                    ? AppColors.textOnPrimary
+                                    : (isClearing
+                                        ? AppColors.error
+                                        : AppColors.textDisabled),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    "Tomorrow, we'll try again.",
+                    style: context.textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.textDisabled,
+                    ),
                   ),
                 ],
               ),
             ),
-
-            // Scrollable content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Leaf icon + header text
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.eco,
-                        size: 28,
-                        color: AppColors.success,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    Text(
-                      "Today didn't go exactly as planned.",
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      "That's okay.",
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'What got in the way?',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        height: 1.4,
-                      ),
-                    ),
-
-                    const SizedBox(height: AppSpacing.xxl),
-
-                    // Reason categories — staggered fade in
-                    ..._buildCategoryList(),
-
-                    // Custom "My Reason" text input
-                    _buildMyReasonInput(),
-
-                    // Follow-up question (conditional)
-                    if (_activeFollowUp != null) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildFollowUp(_activeFollowUp!),
-                    ],
-
-                    const SizedBox(height: AppSpacing.xxl),
-                  ],
-                ),
-              ),
-            ),
-
-            // Footer: Continue/Done + closing line
-            _buildFooter(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Section builders
-  // ---------------------------------------------------------------------------
-
-  List<Widget> _buildCategoryList() {
-    final widgets = <Widget>[];
-    for (int i = 0; i < _kCategories.length; i++) {
-      final category = _kCategories[i];
-
-      // Stagger per category: distribute across 0.0–0.85 of 700ms
-      final itemCount = _kCategories.length;
-      final step = 0.85 / itemCount;
-      final start = (i * step * 0.65).clamp(0.0, 0.84);
-      final end = (start + step * 1.4).clamp(start + 0.05, 1.0);
-
-      final opacity = CurvedAnimation(
-        parent: _controller,
-        curve: Interval(start, end, curve: Curves.easeOut),
-      );
-      final slide = Tween<double>(begin: 16, end: 0).animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: Interval(start, end, curve: Curves.easeOutCubic),
-        ),
-      );
-
-      widgets.add(
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) => Opacity(
-            opacity: opacity.value,
-            child: Transform.translate(
-              offset: Offset(0, slide.value),
-              child: _CategorySection(
-                category: category,
-                selectedKeys: _selectedKeys,
-                onToggle: _toggleReason,
-              ),
-            ),
-          ),
-        ),
-      );
-      widgets.add(const SizedBox(height: AppSpacing.lg));
-    }
-    return widgets;
-  }
-
-  Widget _buildMyReasonInput() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.edit_note_rounded, size: 16, color: AppColors.textPrimary),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              'My Reason',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        TextField(
-          controller: _customTextController,
-          maxLines: 1,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(
-            hintText: 'Something else on your mind...',
-            hintStyle: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textDisabled),
-            filled: true,
-            fillColor: AppColors.surfaceVariant,
-            border: OutlineInputBorder(
-              borderRadius: AppRadius.input,
-              borderSide: BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: AppRadius.input,
-              borderSide: BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: AppRadius.input,
-              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFollowUp(_FollowUp followUp) {
-    return AnimatedSize(
-      duration: AppDurations.medium,
-      curve: Curves.easeOutCubic,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            followUp.question,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: followUp.options.map((option) {
-              final isSelected = _selectedFollowUp == option;
-              return GestureDetector(
-                onTap: () => setState(() {
-                  _selectedFollowUp = isSelected ? null : option;
-                }),
-                child: AnimatedContainer(
-                  duration: AppDurations.fast,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primary.withValues(alpha: 0.08)
-                        : AppColors.surfaceVariant,
-                    borderRadius: AppRadius.chip,
-                    border: Border.all(
-                      color: isSelected ? AppColors.primary : AppColors.border,
-                      width: isSelected ? 1.5 : 1.0,
-                    ),
-                  ),
-                  child: Text(
-                    option,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textPrimary,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          AppSpacing.md,
-          AppSpacing.xl,
-          AppSpacing.lg,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              height: AppSizes.buttonHeight,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textOnPrimary,
-                  disabledBackgroundColor: AppColors.primary.withValues(
-                    alpha: 0.5,
-                  ),
-                  shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Continue',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: AppColors.textOnPrimary),
-                      ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              "Tomorrow, we'll try again.",
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textDisabled,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
-
-// ---------------------------------------------------------------------------
-// _CategorySection — one collapsible reason category
-// ---------------------------------------------------------------------------
-
-class _CategorySection extends StatelessWidget {
-  const _CategorySection({
-    required this.category,
-    required this.selectedKeys,
-    required this.onToggle,
-  });
-
-  final _ReasonCategory category;
-  final List<String> selectedKeys;
-  final void Function(String key) onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Category label
-        Row(
-          children: [
-            Icon(category.icon, size: 16, color: AppColors.textSecondary),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              category.label.toUpperCase(),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-                letterSpacing: 1,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        // Reason chips
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: category.reasons.map((reason) {
-            final isSelected = selectedKeys.contains(reason.key);
-            return _ReasonChip(
-              label: reason.label,
-              isSelected: isSelected,
-              onTap: () => onToggle(reason.key),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _ReasonChip — individual selectable reason card
-// ---------------------------------------------------------------------------
-
-class _ReasonChip extends StatelessWidget {
-  const _ReasonChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: AppDurations.fast,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.surface : AppColors.surfaceVariant,
-          borderRadius: AppRadius.chip,
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected ? AppShadows.sm : null,
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontSize: 13,
-            color: isSelected ? AppColors.primary : AppColors.textPrimary,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
 }

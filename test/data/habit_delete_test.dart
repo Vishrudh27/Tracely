@@ -36,14 +36,12 @@ void main() {
               completedDate: today,
             ),
           );
-      await db.into(db.habitReflections).insert(
-            HabitReflectionsCompanion.insert(
-              habitId: habitId,
-              missedDate: today,
-              reason: 'too_busy',
-            ),
-          );
     }
+    await db.reflectionDao.upsertReflection(
+      reflectionDate: today,
+      reasonKeys: ['too_busy'],
+      missedHabitIds: [keptHabitId, deletedHabitId],
+    );
 
     await db.deleteHabit(deletedHabitId);
 
@@ -55,13 +53,13 @@ void main() {
         .get();
     expect(deletedHabitCompletions, isEmpty);
 
-    final deletedHabitReflections = await (db.select(db.habitReflections)
-          ..where((r) => r.habitId.equals(deletedHabitId)))
-        .get();
-    expect(deletedHabitReflections, isEmpty);
+    // The reflection on today should no longer reference deletedHabitId
+    final reflectedHabits =
+        await db.reflectionDao.getReflectedHabitIds(today);
+    expect(reflectedHabits, isNot(contains(deletedHabitId)));
+    expect(reflectedHabits, contains(keptHabitId));
 
-    // The other habit and its rows must survive — this is a scoped
-    // delete, not another route to clearAllData.
+    // The other habit and its completions must survive
     final keptHabit = await db.habitDao.getHabitById(keptHabitId);
     expect(keptHabit, isNotNull);
 
@@ -69,10 +67,5 @@ void main() {
           ..where((c) => c.habitId.equals(keptHabitId)))
         .get();
     expect(keptHabitCompletions, hasLength(1));
-
-    final keptHabitReflections = await (db.select(db.habitReflections)
-          ..where((r) => r.habitId.equals(keptHabitId)))
-        .get();
-    expect(keptHabitReflections, hasLength(1));
   });
 }

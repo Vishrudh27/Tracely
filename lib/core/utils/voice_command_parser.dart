@@ -76,7 +76,8 @@ const _day = '(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?';
 /// multi-word phrases only — a bare "call" is a common task name itself
 /// ("call mom", "call client") and must not trip this.
 final _callReminderRe = RegExp(
-  r'\b(?:call reminder|call remind(?: me| us)?'
+  r'\b(?:(?:and |also )?(?:set |add |put |create |with )?(?:a |an )?)?'
+  r'(?:call reminder|call remind(?: me| us)?'
   r'|remind(?: me| us)? (?:by|with|via) (?:a )?call'
   r'|ring me|ring alarm|ring reminder'
   r'|phone call reminder|phone me|phone reminder'

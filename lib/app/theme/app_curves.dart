@@ -19,6 +19,12 @@ final class AppCurves {
   /// Default curve for most animations.
   static const Curve standard = Curves.easeInOutCubic;
 
+  /// Standard ease-out deceleration curve.
+  static const Curve easeOut = Curves.easeOut;
+
+  /// Smooth cubic ease-out curve.
+  static const Curve easeOutCubic = Curves.easeOutCubic;
+
   /// Used for content entering the screen.
   static const Curve emphasizedDecelerate = Curves.easeOutCubic;
 
