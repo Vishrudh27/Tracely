@@ -134,6 +134,24 @@ final class AppColors {
       : Color.lerp(primary, Colors.black, 0.12)!;
 
   // ---------------------------------------------------------------------------
+  // Pause & Reflect (Golden Amber accent & Orb glow — Option 3)
+  // ---------------------------------------------------------------------------
+
+  /// Golden amber (#D49A3D) used for reflection orb glow and morning-after prompt card.
+  /// Warm, glowing sunlight tone that complements blues/indigos and harmonizes with greens and earth tones.
+  static const Color _lClay = Color(0xFFD49A3D);
+  static const Color _dClay = Color(0xFFE5AA4A);
+  static Color get clay => isDark ? _dClay : _lClay;
+
+  /// Golden amber at 10% alpha (18% in dark mode for warm, luminous card tinting).
+  static Color get clayTint => clay.withValues(alpha: isDark ? 0.18 : 0.10);
+
+  /// Soft warm sunlight mist for the idle/low-progress orb.
+  static const Color _lOrbPale = Color(0xFFF7EEDC);
+  static const Color _dOrbPale = Color(0xFF3E2C14);
+  static Color get orbPale => isDark ? _dOrbPale : _lOrbPale;
+
+  // ---------------------------------------------------------------------------
   // Text
   // ---------------------------------------------------------------------------
 

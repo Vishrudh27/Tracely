@@ -22,7 +22,9 @@ import '../../../../data/repositories/insight_repository.dart';
 import '../../../../data/repositories/task_repository.dart';
 import '../../../../data/repositories/theme_mode_repository.dart';
 import '../../../../data/services/reflection_gate_service.dart';
+import '../../../reflection/presentation/providers/reflection_prompt_providers.dart';
 import '../../../reflection/presentation/widgets/pause_and_reflect_sheet.dart';
+import '../../../reflection/presentation/widgets/reflection_prompt_card.dart';
 import '../widgets/behavior_insight_card.dart';
 import '../widgets/daily_progress_card.dart';
 import '../widgets/dashboard_greeting_section.dart';
@@ -135,23 +137,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     if (!mounted) return;
 
     try {
-      // Check if there were any habits missed yesterday
-      final yesterday = ref.read(currentDateProvider).addDays(-1);
+      final today = ref.read(currentDateProvider);
+      final promptState = await ref.read(reflectionPromptStateProvider.future);
+      if (!mounted) return;
+
+      // Auto-open rule: once per day ONLY when state is morningAfter and not yet offered today
+      if (promptState != ReflectionPromptState.morningAfter) return;
+
+      final alreadyOffered =
+          await ReflectionGateService.hasAutoOpenBeenOfferedToday(today);
+      if (!mounted || alreadyOffered) return;
+
+      await ReflectionGateService.markAutoOpenOffered(today);
+      if (!mounted) return;
+
+      final yesterday = today.addDays(-1);
       final missedHabits = await ref
           .read(habitRepositoryProvider)
           .getMissedHabitsForDate(yesterday);
-
       if (!mounted || missedHabits.isEmpty) return;
-
-      // Gate: once per calendar day, however the sheet is answered.
-      final shouldShow = await ReflectionGateService.shouldShowPauseAndReflect();
-      if (!mounted || !shouldShow) return;
-
-      await ReflectionGateService.markPauseAndReflectShown();
-      if (!mounted) return;
 
       await PauseAndReflectSheet.show(
         context: context,
+        targetDate: yesterday,
         missedHabits: missedHabits,
       );
     } catch (_) {
@@ -350,6 +358,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 isDark: _isDark,
                 onToggleTheme: _toggleTheme,
               ),
+
+              const ReflectionPromptCard(),
 
               const SizedBox(height: AppSpacing.sectionGap),
 

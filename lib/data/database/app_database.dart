@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -30,6 +31,7 @@ part 'app_database.g.dart';
 ///   v4 — migrated Health/Mind/Fitness/Learning's colorValue to Stitch's hues
 ///   v5 — backfilled built-in category icon keys (emoji column stores AppIconRegistry keys)
 ///   v6 — added isAlarmReminder to Habits and Tasks (Call Reminder feature)
+///   v7 — restructured HabitReflections to one row per day (Pause & Reflect v2)
 @DriftDatabase(
   tables: [
     Categories,
@@ -47,7 +49,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -84,6 +86,11 @@ class AppDatabase extends _$AppDatabase {
             // the column defaults keep all existing reminders unchanged.
             await m.addColumn(habits, habits.isAlarmReminder);
             await m.addColumn(tasks, tasks.isAlarmReminder);
+          }
+          if (from < 7) {
+            // v6 → v7: Restructure HabitReflections to one row per day (Pause & Reflect v2)
+            await customStatement('DROP TABLE IF EXISTS habit_reflections;');
+            await m.createTable(habitReflections);
           }
         },
       );
@@ -208,8 +215,25 @@ class AppDatabase extends _$AppDatabase {
     await transaction(() async {
       await (delete(habitCompletions)..where((c) => c.habitId.equals(habitId)))
           .go();
-      await (delete(habitReflections)..where((r) => r.habitId.equals(habitId)))
-          .go();
+      final allReflections = await select(habitReflections).get();
+      for (final ref in allReflections) {
+        try {
+          final ids = (jsonDecode(ref.missedHabitIds) as List).cast<int>();
+          if (ids.contains(habitId)) {
+            final updatedIds = ids.where((id) => id != habitId).toList();
+            if (updatedIds.isEmpty) {
+              await (delete(habitReflections)..where((r) => r.id.equals(ref.id)))
+                  .go();
+            } else {
+              await (update(habitReflections)..where((r) => r.id.equals(ref.id)))
+                  .write(HabitReflectionsCompanion(
+                    missedHabitIds: Value(jsonEncode(updatedIds)),
+                    updatedAt: Value(DateTime.now()),
+                  ));
+            }
+          }
+        } catch (_) {}
+      }
       await (delete(habits)..where((h) => h.id.equals(habitId))).go();
     });
   }

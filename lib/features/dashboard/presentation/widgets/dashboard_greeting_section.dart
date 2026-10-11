@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/greeting_utils.dart';
+import '../../../reflection/presentation/widgets/reflect_orb_button.dart';
 
 /// Dashboard greeting section.
 ///
@@ -83,7 +84,9 @@ class DashboardGreetingSection extends StatelessWidget {
                   color: AppColors.textSecondary,
                   tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
                 ),
-              if (onSettingsTap != null)
+              const ReflectOrbButton(),
+              if (onSettingsTap != null) ...[
+                const SizedBox(width: AppSpacing.md),
                 IconButton(
                   onPressed: onSettingsTap,
                   icon: const Icon(Icons.settings_outlined),
@@ -91,6 +94,7 @@ class DashboardGreetingSection extends StatelessWidget {
                   color: AppColors.textSecondary,
                   tooltip: 'Settings',
                 ),
+              ],
             ],
           ),
         ),

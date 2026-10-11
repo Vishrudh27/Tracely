@@ -722,11 +722,14 @@ class HabitRepository {
 
   /// Returns a list of habits that were scheduled but NOT completed on [date].
   ///
-  /// Used by the Pause & Reflect trigger in DashboardScreen to determine
-  /// whether the sheet should be shown.
+  /// Works for any calendar date:
+  /// - For yesterday: missed habits left uncompleted.
+  /// - For today: incomplete habits scheduled today.
+  /// Habits created after [date] are excluded.
   Future<List<HabitWithCompletion>> getMissedHabitsForDate(
-    DateTime date,
-  ) async {
+    DateTime date, {
+    bool includeReflected = false,
+  }) async {
     final normalized = date.startOfDay;
     final habits = await _habitDao.getActiveHabits();
     final completions = await _completionDao.getCompletionsInRange(
@@ -736,14 +739,20 @@ class HabitRepository {
     final categories = await _categoryDao.getActiveCategories();
     final catMap = {for (final c in categories) c.id: c};
     final completedIds = {for (final c in completions) c.habitId};
-    final reflectedIds = await _habitDao.attachedDatabase.reflectionDao
-        .getReflectedHabitIds(normalized);
+    final reflectedIds = includeReflected
+        ? const <int>{}
+        : await _habitDao.attachedDatabase.reflectionDao
+            .getReflectedHabitIds(normalized);
 
     final result = <HabitWithCompletion>[];
     for (final habit in habits) {
+      final daysDiff = habit.createdAt.difference(normalized).inDays;
+      if (habit.createdAt.startOfDay.isAfter(normalized) && daysDiff <= 7) {
+        continue;
+      }
       if (!_isHabitScheduledForDay(habit, normalized)) continue;
       if (completedIds.contains(habit.id)) continue; // completed — not missed
-      if (reflectedIds.contains(habit.id)) continue; // already explained (e.g. by voice)
+      if (reflectedIds.contains(habit.id)) continue;
       final cat = catMap[habit.categoryId];
       result.add(
         HabitWithCompletion(

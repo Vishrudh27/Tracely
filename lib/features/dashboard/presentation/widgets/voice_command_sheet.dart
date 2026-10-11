@@ -22,6 +22,7 @@ import '../../../../data/models/task_models.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../../data/repositories/task_repository.dart';
 import '../../../../data/services/category_memory_service.dart';
+import '../../../../data/services/gemini_voice_service.dart';
 import '../../../../data/services/reminder_service.dart';
 import '../../../analytics/presentation/widgets/most_common_reasons_card.dart';
 import '../../../habits/presentation/widgets/category_picker.dart';
@@ -67,7 +68,7 @@ class VoiceCommandSheet extends ConsumerStatefulWidget {
   ConsumerState<VoiceCommandSheet> createState() => _VoiceCommandSheetState();
 }
 
-enum _Phase { idle, listening, parsed, error, saving }
+enum _Phase { idle, listening, parsing, parsed, error, saving }
 
 class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
   // Speech timings, not animations — AppDurations would collapse them to
@@ -77,9 +78,8 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
   // "add the habit of reading … every day at 9" in half. So one listening
   // *run* is a chain of sessions (segments): after a segment that heard
   // words the recognizer restarts, and the run only ends after [_silence]
-  // with no new words, or when the user taps stop. No plugin `pauseFor`:
-  // it counts from listen start and cut off slow first words.
-  static const _silence = Duration(seconds: 2);
+  // with no new words, or when the user taps stop.
+  static const _silence = Duration(milliseconds: 1500);
 
   /// No words at all since the segment started — stop early instead of
   /// waiting out the full [_listenFor] cap. Longer than [_silence]: give
@@ -88,7 +88,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
 
   /// How long to wait for a final result after the mic closes — Android
   /// sometimes sends it late, sometimes never.
-  static const _grace = Duration(milliseconds: 800);
+  static const _grace = Duration(milliseconds: 500);
 
   /// Per-segment safety cap.
   static const _listenFor = Duration(seconds: 30);
@@ -290,17 +290,19 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
           // call — onDevice alone is ignored (SpeechToTextPlugin.kt
           // setupRecognizerIntent). Tying listenMode to onDevice forces that
           // rebuild exactly when the mode actually flips.
-          listenMode: onDevice ? ListenMode.dictation : ListenMode.confirmation,
+          listenMode: ListenMode.dictation,
           localeId: _localeId,
           listenFor: _listenFor,
         ),
       );
     } catch (e) {
       debugPrint('Voice: listen failed: $e');
-      if (!mounted || run != _run) return;
-      return _heard.isEmpty
-          ? _fail(AppStrings.voiceRecognizerFailed)
-          : _parse();
+      if (_heard.isEmpty) {
+        _fail(AppStrings.voiceRecognizerFailed);
+      } else {
+        unawaited(_parse());
+      }
+      return;
     }
     if (!mounted || run != _run) return;
     // Live only now: stragglers from the previous segment that arrived
@@ -479,7 +481,10 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
       debugPrint('Voice: cancel failed: $e');
     }
     if (!mounted || run != _run) return;
-    if (_input.text.trim().isNotEmpty) return _parse();
+    if (_input.text.trim().isNotEmpty) {
+      unawaited(_parse());
+      return;
+    }
     _stopRun();
     setState(() => _phase = _Phase.idle);
   }
@@ -487,7 +492,10 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
   /// Stop tapped, or the user went quiet: use what's in the box.
   void _finish() {
     if (!mounted || _phase != _Phase.listening) return;
-    if (_input.text.trim().isNotEmpty) return _parse();
+    if (_input.text.trim().isNotEmpty) {
+      unawaited(_parse());
+      return;
+    }
     _stopRun();
     setState(() => _phase = _Phase.idle);
   }
@@ -535,7 +543,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
   // Parse → editable slots
   // ---------------------------------------------------------------------------
 
-  void _parse() {
+  Future<void> _parse() async {
     if (_phase == _Phase.saving) return;
     final text = _input.text.trim();
     if (text.isEmpty) return;
@@ -543,14 +551,46 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
     final prefix = _altPrefix;
     final alts = _segmentAlternates;
     _stopRun();
+    if (mounted) setState(() => _phase = _Phase.parsing);
     final today = ref.read(currentDateProvider);
     final now = DateTime.now();
     final nowMinute = now.hour * 60 + now.minute;
 
-    // The top transcription first (already in [text]), then the other
-    // alternates the recognizer offered for the last segment — but only if
-    // nothing was appended after that segment (a later segment's words
-    // would make [prefix] stale).
+    final existingHabits =
+        (ref.read(activeHabitsProvider).asData?.value ?? <Habit>[])
+            .map((h) => h.name)
+            .toList();
+    final existingTasks =
+        (ref.read(tasksProvider).asData?.value ?? <TaskWithCategory>[])
+            .where((t) => !t.isDone)
+            .map((t) => t.title)
+            .toList();
+    final existingCategories =
+        (ref.read(categoriesProvider).asData?.value ?? <Category>[])
+            .map((c) => c.name)
+            .toList();
+
+    // 1. Online First: Try Gemini API parse (Gemini 2.0 Flash)
+    final geminiResult = await GeminiVoiceService.parseVoiceCommand(
+      text,
+      today: today,
+      nowMinute: nowMinute,
+      existingHabits: existingHabits,
+      existingTasks: existingTasks,
+      existingCategories: existingCategories,
+    );
+
+    if (!mounted) return;
+
+    if (geminiResult != null && geminiResult.intent != VoiceIntent.unknown) {
+      debugPrint(
+        'Voice: Successfully parsed online via Gemini API: ${geminiResult.intent}',
+      );
+      _apply(geminiResult, isQuestion: _looksLikeQuestion(text));
+      return;
+    }
+
+    // 2. Offline Fallback: Local regex parser
     final expectedTop = alts.isEmpty
         ? null
         : (prefix.isEmpty ? alts.first : '$prefix ${alts.first}');
@@ -1111,6 +1151,7 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
                       Text(
                         switch (_phase) {
                           _Phase.listening => AppStrings.voiceListening,
+                          _Phase.parsing => 'Understanding command…',
                           _ => _message ?? AppStrings.voiceHint,
                         },
                         textAlign: TextAlign.center,
@@ -1152,11 +1193,12 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
 
   Widget _buildMic() {
     final listening = _phase == _Phase.listening;
+    final parsing = _phase == _Phase.parsing;
     return Semantics(
       button: true,
-      label: listening ? 'Stop listening' : 'Start listening',
+      label: listening ? 'Stop listening' : (parsing ? 'Understanding command' : 'Start listening'),
       child: GestureDetector(
-        onTap: _phase == _Phase.saving ? null : _toggleMic,
+        onTap: (_phase == _Phase.saving || parsing) ? null : _toggleMic,
         child: AnimatedContainer(
           duration: AppDurations.fast,
           curve: AppCurves.standard,
@@ -1164,14 +1206,27 @@ class _VoiceCommandSheetState extends ConsumerState<VoiceCommandSheet> {
           height: 72,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: listening ? AppColors.primary : AppColors.surfaceVariant,
+            color: listening
+                ? AppColors.primary
+                : (parsing ? AppColors.primary.withValues(alpha: 0.12) : AppColors.surfaceVariant),
             boxShadow: AppShadows.sm,
           ),
-          child: Icon(
-            listening ? Icons.stop_rounded : Icons.mic_rounded,
-            size: AppSizes.iconLg,
-            color: listening ? AppColors.textOnPrimary : AppColors.primary,
-          ),
+          child: parsing
+              ? Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                )
+              : Icon(
+                  listening ? Icons.stop_rounded : Icons.mic_rounded,
+                  size: AppSizes.iconLg,
+                  color: listening ? AppColors.textOnPrimary : AppColors.primary,
+                ),
         ),
       ),
     );

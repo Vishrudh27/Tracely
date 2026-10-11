@@ -1,37 +1,38 @@
 import 'package:drift/drift.dart';
 
-import 'habits_table.dart';
-
-/// Drift table for habit-level missed-day reflections.
+/// Drift table for missed-day reflections — ONE ROW PER DAY.
 ///
-/// Stores why a user missed a specific habit on a specific day.
-/// Intentionally separate from DailyReflections (morning mood) to
-/// keep the two distinct user experiences non-conflated.
-///
-/// Used by PauseAndReflectSheet (§4.5) to persist reflection reasons,
-/// and by MostCommonReasonsCard (Phase 3) to surface patterns.
+/// Stores what got in the way on a specific calendar day.
+/// Enforces exactly one reflection row per day via a unique constraint on [reflectionDate].
+/// Captures up to 2 reason keys, optional custom text, and follow-up answers.
 class HabitReflections extends Table {
   /// Auto-incrementing primary key.
   IntColumn get id => integer().autoIncrement()();
 
-  /// The habit that was missed.
-  IntColumn get habitId =>
-      integer().references(Habits, #id)();
+  /// The day the habits were missed (midnight-normalized, local time).
+  /// Unique constraint enforces exactly one reflection row per calendar day.
+  DateTimeColumn get reflectionDate => dateTime().unique()();
 
-  /// The date the habit was missed (midnight-normalized, local time).
-  DateTimeColumn get missedDate => dateTime()();
+  /// JSON list of up to 2 reason keys (e.g. '["low_energy", "too_busy"]').
+  TextColumn get reasonKeys => text()();
 
-  /// The selected reason from the taxonomy.
-  ///
-  /// One of: 'energy', 'time', 'forgot', 'motivation',
-  ///         'environment', 'other'
-  TextColumn get reason => text()();
+  /// Custom free-text reason entered by the user in "My Reason".
+  TextColumn get customText => text().nullable()();
 
-  /// Optional follow-up answer for the reason-specific question.
-  /// Nullable — not all reason categories have a follow-up question.
+  /// The reason key that triggered the follow-up question (if any).
+  TextColumn get followUpReasonKey => text().nullable()();
+
+  /// The user's answer to the follow-up question (if any).
   TextColumn get followUpAnswer => text().nullable()();
 
-  /// When this reflection was created.
+  /// JSON list of habit IDs missed on this day (e.g. '[1, 2]').
+  TextColumn get missedHabitIds => text()();
+
+  /// When this reflection was first created.
   DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  /// When this reflection was last updated.
+  DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
 }

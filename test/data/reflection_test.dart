@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_tracker/data/database/app_database.dart';
@@ -33,10 +35,7 @@ void main() {
 
     tearDown(() async => db.close());
 
-    test('several missed habits can be reflected on in one day', () async {
-      // Two missed habits write two rows for the same day. The day-gate used
-      // to read these back with getSingleOrNull and threw StateError, which
-      // surfaced as an unhandled error on every later dashboard open.
+    test('several missed habits can be reflected on in one day (one row per day)', () async {
       await db.reflectionDao.createHabitReflection(
         habitId: habitA,
         missedDate: missedOn,
@@ -49,72 +48,60 @@ void main() {
       );
 
       final rows = await db.select(db.habitReflections).get();
-      expect(rows, hasLength(2));
-      expect(rows.map((r) => r.habitId), containsAll(<int>[habitA, habitB]));
+      expect(rows, hasLength(1));
+      final reflectedIds = await db.reflectionDao.getReflectedHabitIds(missedOn);
+      expect(reflectedIds, containsAll(<int>[habitA, habitB]));
     });
 
-    test('each reason is stored as its own row so counts group correctly',
-        () async {
-      for (final reason in ['low_energy', 'too_busy']) {
-        await db.reflectionDao.createHabitReflection(
-          habitId: habitA,
-          missedDate: missedOn,
-          reason: reason,
-        );
-      }
+    test('each reason is tallied so counts group correctly', () async {
+      await db.reflectionDao.upsertReflection(
+        reflectionDate: missedOn,
+        reasonKeys: ['low_energy', 'too_busy'],
+        missedHabitIds: [habitA],
+      );
 
       final reasons = await db.reflectionDao.watchMostCommonReasons().first;
 
       expect(
         reasons.map((r) => r.reason),
         containsAll(<String>['low_energy', 'too_busy']),
-        reason: 'a joined "low_energy,too_busy" key would render as Other',
       );
       expect(reasons.every((r) => r.count == 1), isTrue);
     });
 
     test('free-text reason is persisted rather than discarded', () async {
-      await db.reflectionDao.createHabitReflection(
-        habitId: habitA,
-        missedDate: missedOn,
-        reason: 'custom',
-        followUpAnswer: 'power cut all evening',
+      await db.reflectionDao.upsertReflection(
+        reflectionDate: missedOn,
+        reasonKeys: ['low_energy'],
+        customText: 'power cut all evening',
+        followUpReasonKey: 'low_energy',
+        followUpAnswer: 'early night',
+        missedHabitIds: [habitA],
       );
 
-      final rows = await db.select(db.habitReflections).get();
+      final row = await db.reflectionDao.getReflectionForDate(missedOn);
 
-      expect(rows.single.reason, 'custom');
-      expect(rows.single.followUpAnswer, 'power cut all evening');
+      expect(row?.customText, 'power cut all evening');
+      expect(row?.followUpAnswer, 'early night');
+      expect(row?.followUpReasonKey, 'low_energy');
     });
 
-    test('the same reason twice for one habit and day is not duplicated',
-        () async {
-      for (var i = 0; i < 2; i++) {
-        await db.reflectionDao.createHabitReflection(
-          habitId: habitA,
-          missedDate: missedOn,
-          reason: 'forgot',
-        );
-      }
+    test('upsert updates existing day instead of creating duplicate', () async {
+      await db.reflectionDao.upsertReflection(
+        reflectionDate: missedOn,
+        reasonKeys: ['forgot'],
+        missedHabitIds: [habitA],
+      );
+      await db.reflectionDao.upsertReflection(
+        reflectionDate: missedOn,
+        reasonKeys: ['forgot', 'traveling'],
+        missedHabitIds: [habitA, habitB],
+      );
 
       final rows = await db.select(db.habitReflections).get();
       expect(rows, hasLength(1));
-    });
-
-    test('different reasons for one habit and day are both kept', () async {
-      await db.reflectionDao.createHabitReflection(
-        habitId: habitA,
-        missedDate: missedOn,
-        reason: 'forgot',
-      );
-      await db.reflectionDao.createHabitReflection(
-        habitId: habitA,
-        missedDate: missedOn,
-        reason: 'traveling',
-      );
-
-      final rows = await db.select(db.habitReflections).get();
-      expect(rows, hasLength(2));
+      final keys = (jsonDecode(rows.single.reasonKeys) as List).cast<String>();
+      expect(keys, containsAll(['forgot', 'traveling']));
     });
   });
 
