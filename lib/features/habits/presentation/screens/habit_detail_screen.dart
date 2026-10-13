@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,15 +18,16 @@ import '../../../../data/database/app_database.dart';
 import '../../../../data/database/daos/reflection_dao.dart';
 import '../../../../data/repositories/habit_repository.dart';
 import '../../../analytics/presentation/widgets/most_common_reasons_card.dart';
+import '../../../reflection/presentation/widgets/reflection_taxonomy.dart';
 
-/// A single habit's story — identity, streak trio, a year of history, and
-/// the reasons it slipped.
+/// A single habit's comprehensive story:
+/// - Identity & category branding
+/// - Hero Momentum Gauge with live streak, best streak, consistency, and bounce-back
+/// - Interactive 28-day rolling calendar grid with touch inspection
+/// - Hero Why Statistics & Resilience breakdown
 ///
 /// Reached by tapping a habit in the Habits screen. Fully reactive: toggling
-/// the habit's completion anywhere else in the app updates this screen live.
-///
-/// Deleting lives on the Edit screen, not here — Stitch's header carries only
-/// back + edit.
+/// the habit's completion anywhere updates this screen live.
 class HabitDetailScreen extends ConsumerStatefulWidget {
   const HabitDetailScreen({super.key, required this.habitId});
 
@@ -36,9 +39,6 @@ class HabitDetailScreen extends ConsumerStatefulWidget {
 
 class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     with SingleTickerProviderStateMixin {
-  /// Columns in the "This year" heatmap — 16 weeks, matching Stitch's grid.
-  static const _weeks = 16;
-
   late final AnimationController _controller;
   late final Animation<double> _identityOpacity;
   late final Animation<double> _identityScale;
@@ -46,6 +46,8 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
   late final Animation<double> _statsSlide;
   late final Animation<double> _sectionsOpacity;
   late final Animation<double> _sectionsSlide;
+
+  DateTime? _inspectedDay;
 
   @override
   void initState() {
@@ -115,7 +117,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
   Widget _buildNotFound(BuildContext context) {
     return Column(
       children: [
-        _HabitDetailHeader(onEdit: null),
+        const _HabitDetailHeader(onEdit: null),
         const Expanded(
           child: TracelyEmptyState(
             icon: Icons.search_off_rounded,
@@ -134,6 +136,9 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
     final reasons =
         ref.watch(habitReasonsProvider(widget.habitId)).asData?.value ??
             const <ReasonFrequency>[];
+    final reflectionsMap =
+        ref.watch(habitReflectionsMapProvider(widget.habitId)).asData?.value ??
+            const <DateTime, HabitReflection>{};
 
     final category = categoryAsync.asData?.value;
     final completions = completionsAsync.asData?.value ?? const [];
@@ -141,12 +146,13 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
 
     bool isDayScheduled(DateTime day) =>
         isScheduledOn(habit.frequencyType, habit.frequencyConfig, day);
+
     final currentStreak =
         StreakCalculator.currentStreak(dates, isScheduled: isDayScheduled);
     final longestStreak =
         StreakCalculator.longestStreak(dates, isScheduled: isDayScheduled);
 
-    final today = DateTime.now().startOfDay;
+    final today = ref.watch(currentDateProvider).startOfDay;
     final createdDay = habit.createdAt.startOfDay;
     final dateSet = dates.map((d) => d.startOfDay).toSet();
 
@@ -158,13 +164,23 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
       completedDays: dateSet,
     );
 
-    final usualMinute = usualCompletionMinute(
-      completions.map((c) => c.completedAt),
-      today: ref.watch(currentDateProvider),
+    final bounceBack = StreakCalculator.bounceBackStats(
+      completionDates: dates,
+      createdDay: createdDay,
+      today: today,
+      isScheduled: isDayScheduled,
     );
 
-    // 16 weeks of columns, Monday-first, ending with the current week.
-    final gridStart = today.startOfWeek.addDays(-(_weeks - 1) * 7);
+    final usualMinute = usualCompletionMinute(
+      completions.map((c) => c.completedAt),
+      today: today,
+    );
+
+    final categoryColor = category != null
+        ? Color(category.colorValue)
+        : AppColors.categoryCustom;
+
+    final inspected = _inspectedDay ?? today;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -186,6 +202,7 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Identity
                     Opacity(
                       opacity: _identityOpacity.value,
                       child: Transform.scale(
@@ -195,22 +212,29 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                           categoryName: category?.name ?? 'General',
                           iconKey: habit.emoji ?? category?.emoji,
                           usualMinute: usualMinute,
+                          categoryColor: categoryColor,
                         ),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xxl),
+
+                    // Hero Momentum Gauge
                     Opacity(
                       opacity: _statsOpacity.value,
                       child: Transform.translate(
                         offset: Offset(0, _statsSlide.value),
-                        child: _StatTrio(
+                        child: _HeroMomentumGauge(
                           currentStreak: currentStreak,
                           bestStreak: longestStreak,
-                          recentRate: recentRate,
+                          consistencyRate: recentRate,
+                          bounceBackRate: bounceBack.rate,
+                          categoryColor: categoryColor,
                         ),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xxl),
+
+                    // Sections: 28-Day Grid + Why Statistics
                     Opacity(
                       opacity: _sectionsOpacity.value,
                       child: Transform.translate(
@@ -218,21 +242,25 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _SectionHeader('This year'),
-                            _YearHeatmap(
-                              start: gridStart,
-                              weeks: _weeks,
+                            const _SectionHeader('Past 4 Weeks History'),
+                            _RollingCalendarGrid(
                               today: today,
                               createdDay: createdDay,
                               completedDays: dateSet,
-                              frequencyType: habit.frequencyType,
-                              frequencyConfig: habit.frequencyConfig,
+                              reflectionsMap: reflectionsMap,
+                              isScheduled: isDayScheduled,
+                              categoryColor: categoryColor,
+                              inspectedDay: inspected,
+                              onSelectDay: (day) =>
+                                  setState(() => _inspectedDay = day),
                             ),
-                            if (reasons.isNotEmpty) ...[
-                              const SizedBox(height: AppSpacing.xxl),
-                              _SectionHeader('Why it slipped'),
-                              _WhyItSlipped(reasons: reasons),
-                            ],
+                            const SizedBox(height: AppSpacing.xxl),
+                            const _SectionHeader('Why it slipped & Resilience'),
+                            _HeroWhyStatistics(
+                              reasons: reasons,
+                              bounceBack: bounceBack,
+                              categoryColor: categoryColor,
+                            ),
                           ],
                         ),
                       ),
@@ -255,8 +283,6 @@ class _HabitDetailScreenState extends ConsumerState<HabitDetailScreen>
 class _HabitDetailHeader extends StatelessWidget {
   const _HabitDetailHeader({required this.onEdit});
 
-  /// Null while the habit is loading or already gone — the edit button is
-  /// hidden rather than disabled, since there is nothing to edit.
   final VoidCallback? onEdit;
 
   @override
@@ -307,17 +333,15 @@ class _HabitIdentity extends StatelessWidget {
     required this.habit,
     required this.categoryName,
     required this.iconKey,
+    required this.categoryColor,
     this.usualMinute,
   });
 
   final Habit habit;
   final String categoryName;
-
-  /// Typical completion time, when the data is consistent enough to say.
-  final int? usualMinute;
-
-  /// The habit's own icon, falling back to its category's.
   final String? iconKey;
+  final Color categoryColor;
+  final int? usualMinute;
 
   @override
   Widget build(BuildContext context) {
@@ -325,31 +349,71 @@ class _HabitIdentity extends StatelessWidget {
       width: double.infinity,
       child: Column(
         children: [
-          Icon(
-            AppIconRegistry.resolve(iconKey),
-            size: AppSizes.iconXxl,
-            color: AppColors.textPrimary,
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: categoryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: categoryColor.withValues(alpha: 0.28),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: categoryColor.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                AppIconRegistry.resolve(iconKey),
+                size: 32,
+                color: categoryColor,
+              ),
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
             habit.name,
-            style: context.textTheme.displaySmall,
+            style: context.textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            '$categoryName • '
-            '${frequencyLabel(habit.frequencyType, habit.frequencyConfig)}',
-            style: context.textTheme.bodyMedium
-                ?.copyWith(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: categoryColor,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$categoryName • '
+                '${frequencyLabel(habit.frequencyType, habit.frequencyConfig)}',
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
           if (usualMinute != null) ...[
             const SizedBox(height: AppSpacing.xxs),
             Text(
               '${AppStrings.usuallyDoneAround} ${clockLabel(usualMinute!)}',
-              style: context.textTheme.bodyMedium
-                  ?.copyWith(color: AppColors.textSecondary),
+              style: context.textTheme.bodySmall?.copyWith(
+                color: AppColors.textDisabled,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -360,91 +424,177 @@ class _HabitIdentity extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Stat trio — current streak, best streak, last 30 days
+// Hero Momentum Gauge — Centerpiece flame streak & sub-metrics trio
 // ---------------------------------------------------------------------------
 
-class _StatTrio extends StatelessWidget {
-  const _StatTrio({
+class _HeroMomentumGauge extends StatelessWidget {
+  const _HeroMomentumGauge({
     required this.currentStreak,
     required this.bestStreak,
-    required this.recentRate,
+    required this.consistencyRate,
+    required this.bounceBackRate,
+    required this.categoryColor,
   });
 
   final int currentStreak;
   final int bestStreak;
-  final int recentRate;
+  final int consistencyRate;
+  final int bounceBackRate;
+  final Color categoryColor;
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.local_fire_department_rounded,
-            value: '$currentStreak',
-            label: 'Current streak',
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _StatCard(value: '$bestStreak', label: 'Best streak')),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _StatCard(value: '$recentRate%', label: 'Last 30 days'),
-        ),
-      ],
-    );
+  String _motto() {
+    if (currentStreak >= 30) {
+      return 'Unstoppable rhythm • Habit deeply ingrained.';
+    }
+    if (currentStreak >= 14) {
+      return 'Strong momentum • Consistency is second nature.';
+    }
+    if (currentStreak >= 7) {
+      return 'Solid weekly rhythm • Keep the fire burning.';
+    }
+    if (currentStreak > 0) {
+      return 'Active streak • Every single day compounds.';
+    }
+    return 'Your next streak starts with one small step today.';
   }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.value, required this.label, this.icon});
-
-  final String value;
-  final String label;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: AppSpacing.card,
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: AppRadius.card,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: AppColors.border.withValues(alpha: 0.7),
+          width: 1,
+        ),
         boxShadow: AppShadows.sm,
       ),
       child: Column(
         children: [
-          // Cards without an icon reserve its height so all three line up.
-          if (icon != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Icon(
-                icon,
-                size: AppSizes.iconSm,
-                color: AppColors.accentTerracotta,
+          // Centerpiece streak display
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.accentTerracotta.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: AppColors.accentTerracotta.withValues(alpha: 0.28),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.local_fire_department_rounded,
+                    size: 28,
+                    color: AppColors.accentTerracotta,
+                  ),
+                ),
               ),
-            )
-          else
-            const SizedBox(height: AppSizes.iconSm + AppSpacing.xs),
-          // Three cards across is tight on a 360dp screen — scale down rather
-          // than clip "100%" or "Current streak".
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: context.textTheme.displayMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-              maxLines: 1,
+              const SizedBox(width: AppSpacing.md),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        '$currentStreak',
+                        style: context.textTheme.displayMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 40,
+                          height: 1.0,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        currentStreak == 1 ? 'DAY' : 'DAYS',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: AppColors.accentTerracotta,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'CURRENT STREAK',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: AppColors.textDisabled,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _motto(),
+            style: context.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Divider(
+              color: AppColors.border.withValues(alpha: 0.5),
+              height: 1,
             ),
           ),
-          const SizedBox(height: AppSpacing.xxs),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              style: context.textTheme.bodySmall,
-              maxLines: 1,
-            ),
+
+          // Sub-metrics trio strip
+          Row(
+            children: [
+              Expanded(
+                child: _SubMetricCol(
+                  icon: Icons.military_tech_outlined,
+                  iconColor: AppColors.clay,
+                  value: '$bestStreak d',
+                  label: 'All-Time Best',
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 36,
+                color: AppColors.border.withValues(alpha: 0.5),
+              ),
+              Expanded(
+                child: _SubMetricCol(
+                  icon: Icons.pie_chart_outline_rounded,
+                  iconColor: categoryColor,
+                  value: '$consistencyRate%',
+                  label: 'Consistency',
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 36,
+                color: AppColors.border.withValues(alpha: 0.5),
+              ),
+              Expanded(
+                child: _SubMetricCol(
+                  icon: Icons.bolt_rounded,
+                  iconColor: AppColors.accentTerracotta,
+                  value: '$bounceBackRate%',
+                  label: 'Bounce-Back',
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -452,8 +602,55 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _SubMetricCol extends StatelessWidget {
+  const _SubMetricCol({
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: iconColor),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: context.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: context.textTheme.labelSmall?.copyWith(
+            color: AppColors.textDisabled,
+            fontSize: 10,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
-// Sections
+// Section Header
 // ---------------------------------------------------------------------------
 
 class _SectionHeader extends StatelessWidget {
@@ -465,254 +662,872 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Text(title, style: context.textTheme.titleMedium),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: AppSpacing.card,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadius.card,
-        boxShadow: AppShadows.sm,
+      child: Text(
+        title,
+        style: context.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
       ),
-      child: child,
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// "This year" heatmap — 16 Monday-first columns of this habit's history
+// 28-Day Rolling Calendar Grid with Touch Inspection Micro-Card
 // ---------------------------------------------------------------------------
 
-class _YearHeatmap extends StatelessWidget {
-  const _YearHeatmap({
-    required this.start,
-    required this.weeks,
+class _RollingCalendarGrid extends StatelessWidget {
+  const _RollingCalendarGrid({
     required this.today,
     required this.createdDay,
     required this.completedDays,
-    required this.frequencyType,
-    required this.frequencyConfig,
+    required this.reflectionsMap,
+    required this.isScheduled,
+    required this.categoryColor,
+    required this.inspectedDay,
+    required this.onSelectDay,
   });
 
-  /// Monday of the leftmost column.
-  final DateTime start;
-  final int weeks;
   final DateTime today;
   final DateTime createdDay;
   final Set<DateTime> completedDays;
-  final String frequencyType;
-  final String? frequencyConfig;
+  final Map<DateTime, HabitReflection> reflectionsMap;
+  final bool Function(DateTime) isScheduled;
+  final Color categoryColor;
+  final DateTime inspectedDay;
+  final ValueChanged<DateTime> onSelectDay;
 
-  static const _cell = 14.0;
-  static const _gap = 3.0;
+  static const _weekHeaders = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  @override
+  Widget build(BuildContext context) {
+    // 4 weeks (28 days) ending on the current week's Sunday
+    final currentWeekStart = today.startOfWeek;
+    final gridStart = currentWeekStart.addDays(-21);
+    final allDays = List.generate(28, (i) => gridStart.addDays(i));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: AppColors.border.withValues(alpha: 0.65),
+          width: 1,
+        ),
+        boxShadow: AppShadows.sm,
+      ),
+      child: Column(
+        children: [
+          // Weekday column header row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (final h in _weekHeaders)
+                SizedBox(
+                  width: 38,
+                  child: Text(
+                    h,
+                    textAlign: TextAlign.center,
+                    style: context.textTheme.labelSmall?.copyWith(
+                      color: AppColors.textDisabled,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+
+          // 4 weeks of rows (7 days each)
+          for (int week = 0; week < 4; week++) ...[
+            if (week > 0) const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                for (int d = 0; d < 7; d++) ...[
+                  _CalendarDayCell(
+                    day: allDays[week * 7 + d],
+                    today: today,
+                    isCompleted: completedDays.contains(allDays[week * 7 + d]),
+                    hasReflection:
+                        reflectionsMap.containsKey(allDays[week * 7 + d]),
+                    isScheduled: isScheduled(allDays[week * 7 + d]),
+                    isSelected: inspectedDay == allDays[week * 7 + d],
+                    categoryColor: categoryColor,
+                    onTap: () => onSelectDay(allDays[week * 7 + d]),
+                  ),
+                ],
+              ],
+            ),
+          ],
+
+          const SizedBox(height: AppSpacing.md),
+          Divider(
+            color: AppColors.border.withValues(alpha: 0.5),
+            height: 1,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Touch Inspection Micro-Card
+          _DayInspectionCard(
+            day: inspectedDay,
+            today: today,
+            isCompleted: completedDays.contains(inspectedDay),
+            isScheduled: isScheduled(inspectedDay),
+            reflection: reflectionsMap[inspectedDay],
+            categoryColor: categoryColor,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarDayCell extends StatelessWidget {
+  const _CalendarDayCell({
+    required this.day,
+    required this.today,
+    required this.isCompleted,
+    required this.hasReflection,
+    required this.isScheduled,
+    required this.isSelected,
+    required this.categoryColor,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final bool isCompleted;
+  final bool hasReflection;
+  final bool isScheduled;
+  final bool isSelected;
+  final Color categoryColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = day == today;
+    final isFuture = day.isAfter(today);
+
+    Color bg;
+    Border? border;
+    Color textColor;
+
+    if (isCompleted) {
+      bg = categoryColor;
+      textColor = Colors.white;
+      if (isSelected) {
+        border = Border.all(color: AppColors.textPrimary, width: 2);
+      }
+    } else if (hasReflection) {
+      bg = AppColors.clay.withValues(alpha: 0.16);
+      border = Border.all(
+        color: isSelected ? AppColors.textPrimary : AppColors.clay,
+        width: isSelected ? 2 : 1.25,
+      );
+      textColor = AppColors.clay;
+    } else if (isScheduled && !isFuture) {
+      bg = AppColors.surfaceVariant.withValues(alpha: 0.4);
+      border = Border.all(
+        color: isSelected
+            ? AppColors.textPrimary
+            : (isToday
+                ? categoryColor
+                : AppColors.border.withValues(alpha: 0.6)),
+        width: isSelected ? 2 : (isToday ? 1.5 : 0.75),
+      );
+      textColor = isToday ? AppColors.textPrimary : AppColors.textDisabled;
+    } else {
+      // Future or not scheduled
+      bg = Colors.transparent;
+      if (isSelected) {
+        border = Border.all(color: AppColors.textPrimary, width: 2);
+      }
+      textColor = isFuture
+          ? AppColors.textDisabled.withValues(alpha: 0.35)
+          : AppColors.textDisabled.withValues(alpha: 0.45);
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: AppDurations.fast,
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(9),
+          border: border,
+          boxShadow: isCompleted
+              ? [
+                  BoxShadow(
+                    color: categoryColor.withValues(alpha: 0.25),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isCompleted || isToday || hasReflection
+                    ? FontWeight.w700
+                    : FontWeight.w500,
+                color: textColor,
+              ),
+            ),
+            // Reflection indicator mini stone pebble
+            if (hasReflection && !isCompleted)
+              Positioned(
+                bottom: 3,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.clay,
+                  ),
+                ),
+              ),
+            // Tiny checkmark for completed
+            if (isCompleted)
+              Positioned(
+                bottom: 2.5,
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 9,
+                  color: Colors.white,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Touch Inspection Micro-Card
+// ---------------------------------------------------------------------------
+
+class _DayInspectionCard extends StatelessWidget {
+  const _DayInspectionCard({
+    required this.day,
+    required this.today,
+    required this.isCompleted,
+    required this.isScheduled,
+    required this.reflection,
+    required this.categoryColor,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final bool isCompleted;
+  final bool isScheduled;
+  final HabitReflection? reflection;
+  final Color categoryColor;
+
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
-
-  // Monday-first, with alternating rows blank — same as Stitch's M/W/F/S.
-  static const _dayLabels = ['M', '', 'W', '', 'F', '', 'S'];
-
-  /// A single habit is either done or not, so only the two ends of the shared
-  /// brown ramp are used; the legend still shows all five for continuity with
-  /// Statistics.
-  ///
-  /// Days outside the habit's schedule get the empty-box color, not a miss
-  /// color — a Mon–Fri habit shouldn't look like it failed every weekend.
-  /// Still a visible box (not transparent) so the grid doesn't look like it
-  /// has holes in it.
-  // Out-of-schedule and "missed" used to get two different colors
-  // (AppColors.border vs AppColors.heatmap.first) — fine in light mode,
-  // where border happens to sit close to heatmap[0], but dark mode's
-  // border is tuned bright enough to read as a hairline elsewhere, which
-  // made out-of-schedule days visibly lighter than missed ones. Both are
-  // "not done" and now share one neutral, same as the legend's "Less"
-  // swatch — which also means schedule/range no longer affects the color
-  // at all, so this doesn't need day as input anymore.
-  Color _cellColor(bool completed) =>
-      completed ? AppColors.heatmap.last : AppColors.heatmap.first;
+  static const _weekdays = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  ];
 
   @override
   Widget build(BuildContext context) {
-    // A month label sits above the first column that starts in that month.
-    final labels = <int, String>{};
-    var lastMonth = -1;
-    for (var c = 0; c < weeks; c++) {
-      final month = start.addDays(c * 7).month;
-      if (month != lastMonth) {
-        labels[c] = _months[month - 1];
-        lastMonth = month;
-      }
-    }
-    // Column 0 always gets a label, so it collides when the grid happens to
-    // start in the last week of a month. Two columns apart is ~34px — just
-    // enough for a three-letter month.
-    if (labels.containsKey(1) || labels.containsKey(2)) labels.remove(0);
+    final dateLabel =
+        '${_weekdays[day.weekday - 1]}, ${_months[day.month - 1]} ${day.day}'
+        '${day == today ? ' (Today)' : ''}';
 
-    return _SectionCard(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Shrink the cell to whatever fits the card's width so all 16
-          // weeks always render without needing horizontal scroll — never
-          // grow past the design's 14px on a wide screen, only shrink.
-          const dayLabelColumn = _cell + AppSpacing.sm;
-          final available = constraints.maxWidth - dayLabelColumn;
-          final cell = (((available - (weeks - 1) * _gap) / weeks)
-                  .clamp(6.0, _cell))
-              .toDouble();
-          final step = cell + _gap;
-          final gridWidth = weeks * cell + (weeks - 1) * _gap;
+    final isFuture = day.isAfter(today);
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+    Widget statusWidget;
+    if (isCompleted) {
+      statusWidget = Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: categoryColor.withValues(alpha: 0.12),
+              borderRadius: AppRadius.chip,
+              border: Border.all(
+                color: categoryColor.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle_rounded, size: 13, color: categoryColor),
+                const SizedBox(width: 4),
+                Text(
+                  'Completed',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: categoryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Habit completed successfully.',
+              style: context.textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 11.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    } else if (reflection != null) {
+      List<String> reasonLabels = [];
+      try {
+        final keys = (jsonDecode(reflection!.reasonKeys) as List).cast<String>();
+        reasonLabels = keys.map(findReasonLabel).toList();
+      } catch (_) {}
+
+      final stoneText = reasonLabels.isNotEmpty
+          ? reasonLabels.join(' • ')
+          : 'Reflected';
+
+      statusWidget = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: dayLabelColumn),
-                  SizedBox(
-                    width: gridWidth,
-                    height: 16,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        for (final entry in labels.entries)
-                          Positioned(
-                            left: entry.key * step,
-                            child: Text(
-                              entry.value,
-                              style: context.textTheme.labelSmall
-                                  ?.copyWith(color: AppColors.textDisabled),
-                            ),
-                          ),
-                      ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: AppColors.clay.withValues(alpha: 0.14),
+                  borderRadius: AppRadius.chip,
+                  border: Border.all(
+                    color: AppColors.clay.withValues(alpha: 0.35),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.spa_rounded, size: 13, color: AppColors.clay),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Missed & Reflected',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.clay,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      for (var r = 0; r < 7; r++) ...[
-                        if (r > 0) const SizedBox(height: _gap),
-                        SizedBox(
-                          width: _cell,
-                          height: cell,
-                          child: Text(
-                            _dayLabels[r],
-                            textAlign: TextAlign.center,
-                            style: context.textTheme.labelSmall?.copyWith(
-                              color: AppColors.textDisabled,
-                              fontSize: 10,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  stoneText,
+                  style: context.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: AppColors.textPrimary,
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Row(
-                    children: [
-                      for (var c = 0; c < weeks; c++) ...[
-                        if (c > 0) const SizedBox(width: _gap),
-                        Column(
-                          children: [
-                            for (var r = 0; r < 7; r++) ...[
-                              if (r > 0) const SizedBox(height: _gap),
-                              Container(
-                                width: cell,
-                                height: cell,
-                                decoration: BoxDecoration(
-                                  color: _cellColor(
-                                    completedDays.contains(start.addDays(c * 7 + r)),
-                                  ),
-                                  borderRadius: BorderRadius.circular(3.5),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              const _HeatmapLegend(),
             ],
-          );
-        },
+          ),
+          if (reflection!.followUpAnswer != null &&
+              reflection!.followUpAnswer!.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              'Note: "${reflection!.followUpAnswer}"',
+              style: context.textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      );
+    } else if (isScheduled && !isFuture) {
+      statusWidget = Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: AppRadius.chip,
+              border: Border.all(
+                color: AppColors.border,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.remove_circle_outline_rounded,
+                  size: 13,
+                  color: AppColors.textDisabled,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  day == today ? 'Pending Today' : 'Missed',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              day == today
+                  ? 'Ready to complete today.'
+                  : 'Scheduled but not recorded.',
+              style: context.textTheme.bodySmall?.copyWith(
+                color: AppColors.textDisabled,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+        ],
+      );
+    } else if (isFuture) {
+      statusWidget = Text(
+        'Upcoming scheduled day.',
+        style: context.textTheme.bodySmall?.copyWith(
+          color: AppColors.textDisabled,
+          fontSize: 11.5,
+        ),
+      );
+    } else {
+      statusWidget = Text(
+        'Rest day • Not scheduled by frequency.',
+        style: context.textTheme.bodySmall?.copyWith(
+          color: AppColors.textDisabled,
+          fontSize: 11.5,
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dateLabel,
+            style: context.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          statusWidget,
+        ],
       ),
     );
   }
 }
 
-class _HeatmapLegend extends StatelessWidget {
-  const _HeatmapLegend();
+// ---------------------------------------------------------------------------
+// Hero Why Statistics & Resilience Section
+// ---------------------------------------------------------------------------
+
+class _HeroWhyStatistics extends StatelessWidget {
+  const _HeroWhyStatistics({
+    required this.reasons,
+    required this.bounceBack,
+    required this.categoryColor,
+  });
+
+  final List<ReasonFrequency> reasons;
+  final ({int rate, int recoveredCount, int totalMisses}) bounceBack;
+  final Color categoryColor;
 
   @override
   Widget build(BuildContext context) {
-    final style = context.textTheme.labelSmall
-        ?.copyWith(color: AppColors.textDisabled);
+    final total = reasons.fold<int>(0, (sum, r) => sum + r.count);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Less', style: style),
-        const SizedBox(width: AppSpacing.xs),
-        for (final color in AppColors.heatmap) ...[
+        // ---------------------------------------------------------------------
+        // 1. Resilience & Bounce-Back Rate Card
+        // ---------------------------------------------------------------------
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: AppColors.border.withValues(alpha: 0.65),
+              width: 1,
+            ),
+            boxShadow: AppShadows.sm,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.accentTerracotta.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: AppColors.accentTerracotta.withValues(alpha: 0.28),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.bolt_rounded,
+                    size: 24,
+                    color: AppColors.accentTerracotta,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '${bounceBack.rate}%',
+                          style: context.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.accentTerracotta,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Bounce-Back Rate',
+                          style: context.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      bounceBack.totalMisses == 0
+                          ? 'Flawless consistency! No scheduled days missed.'
+                          : (bounceBack.recoveredCount > 0
+                              ? 'Recovered the next day after ${bounceBack.recoveredCount} of ${bounceBack.totalMisses} slips.'
+                              : 'Keep going! Every pause is data to bounce back from.'),
+                      style: context.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: AppSpacing.md),
+
+        // ---------------------------------------------------------------------
+        // 2. Obstacles & Stone Breakdown
+        // ---------------------------------------------------------------------
+        if (reasons.isNotEmpty) ...[
+          // Primary Obstacle Callout Card
+          _PrimaryObstacleCard(
+            topReason: reasons.first,
+            totalReasons: total,
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
+          // Stone Pebbles Breakdown & Ranked Bars
           Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2.5),
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.65),
+                width: 1,
+              ),
+              boxShadow: AppShadows.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reflection stones distribution',
+                  style: context.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+
+                // Stone Pebble Chips
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final r in reasons)
+                      _StonePebbleChip(
+                        reason: r,
+                        totalCount: total,
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+                Divider(
+                  color: AppColors.border.withValues(alpha: 0.5),
+                  height: 1,
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Progress Rows
+                for (var i = 0; i < reasons.length; i++) ...[
+                  if (i > 0) const SizedBox(height: AppSpacing.md),
+                  ReasonRow(reason: reasons[i], totalCount: total),
+                ],
+              ],
+            ),
+          ),
+        ] else ...[
+          // Empty State Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.65),
+                width: 1,
+              ),
+              boxShadow: AppShadows.sm,
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 32,
+                  color: AppColors.clay,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Flawless Momentum',
+                  style: context.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'No slip-ups logged for this habit yet. Whenever life gets in the way, Pause & Reflect stones will map your friction patterns here.',
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
         ],
-        const SizedBox(width: AppSpacing.xs),
-        Text('More', style: style),
       ],
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// "Why it slipped" — this habit's own Pause & Reflect reasons
+// Primary Obstacle Card
 // ---------------------------------------------------------------------------
 
-class _WhyItSlipped extends StatelessWidget {
-  const _WhyItSlipped({required this.reasons});
+class _PrimaryObstacleCard extends StatelessWidget {
+  const _PrimaryObstacleCard({
+    required this.topReason,
+    required this.totalReasons,
+  });
 
-  final List<ReasonFrequency> reasons;
+  final ReasonFrequency topReason;
+  final int totalReasons;
+
+  String _tacticalAdvice(String reasonKey) {
+    return switch (reasonKey) {
+      'low_energy' || 'poor_sleep' || 'felt_sick' || 'burned_out' || 'energy' =>
+        'Energy dips are the primary friction. Consider an easier recovery version or scheduling earlier.',
+      'too_busy' || 'unexpected_work' || 'meetings' || 'family' || 'time' =>
+        'Time crunches disrupt this habit most. Try habit-stacking with an existing daily anchor.',
+      'lost_motivation' || 'procrastinated' || 'forgot' || 'felt_overwhelmed' || 'couldnt_focus' || 'mind' =>
+        'Motivation ebbs and flows. Lowering the activation threshold by 50% keeps streaks alive.',
+      _ =>
+        'External factors disrupt consistency. Preparing environment or cues the night before helps.',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final total = reasons.fold<int>(0, (sum, r) => sum + r.count);
+    final display = reasonDisplayInfo(topReason.reason);
+    final percent = totalReasons > 0
+        ? ((topReason.count / totalReasons) * 100).round()
+        : 100;
 
-    return _SectionCard(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: display.color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: display.color.withValues(alpha: 0.28),
+          width: 1.25,
+        ),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var i = 0; i < reasons.length; i++) ...[
-            if (i > 0) const SizedBox(height: AppSpacing.lg),
-            ReasonRow(reason: reasons[i], totalCount: total),
-          ],
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: display.color.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(display.icon, size: 16, color: display.color),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PRIMARY OBSTACLE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                        color: display.color,
+                      ),
+                    ),
+                    Text(
+                      '${display.label} ($percent% of misses)',
+                      style: context.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs + 2),
+          Text(
+            _tacticalAdvice(topReason.reason),
+            style: context.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stone Pebble Chip
+// ---------------------------------------------------------------------------
+
+class _StonePebbleChip extends StatelessWidget {
+  const _StonePebbleChip({
+    required this.reason,
+    required this.totalCount,
+  });
+
+  final ReasonFrequency reason;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final display = reasonDisplayInfo(reason.reason);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: display.color.withValues(alpha: 0.10),
+        borderRadius: AppRadius.chip,
+        border: Border.all(
+          color: display.color.withValues(alpha: 0.25),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(display.icon, size: 13, color: display.color),
+          const SizedBox(width: 5),
+          Text(
+            display.label,
+            style: context.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              color: display.color,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: display.color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${reason.count}',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: display.color,
+              ),
+            ),
+          ),
         ],
       ),
     );

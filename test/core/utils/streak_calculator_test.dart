@@ -203,4 +203,58 @@ void main() {
       expect(StreakCalculator.needsCompletionToday([day(1)]), true);
     });
   });
+
+  group('StreakCalculator.bounceBackStats', () {
+    test('returns 100% when no missed days', () {
+      final today = DateTime(2026, 10, 10);
+      final created = DateTime(2026, 10, 1);
+      final completions = List.generate(9, (i) => created.add(Duration(days: i)));
+      final stats = StreakCalculator.bounceBackStats(
+        completionDates: completions,
+        createdDay: created,
+        today: today,
+        isScheduled: (_) => true,
+      );
+      expect(stats.rate, 100);
+      expect(stats.totalMisses, 0);
+      expect(stats.recoveredCount, 0);
+    });
+
+    test('calculates correct rate when recovered on next scheduled day', () {
+      final today = DateTime(2026, 10, 6);
+      final created = DateTime(2026, 10, 1);
+      final completions = [
+        DateTime(2026, 10, 1),
+        DateTime(2026, 10, 3),
+        DateTime(2026, 10, 5),
+      ];
+      final stats = StreakCalculator.bounceBackStats(
+        completionDates: completions,
+        createdDay: created,
+        today: today,
+        isScheduled: (_) => true,
+      );
+      expect(stats.totalMisses, 2);
+      expect(stats.recoveredCount, 2);
+      expect(stats.rate, 100);
+    });
+
+    test('calculates partial bounce-back rate', () {
+      final today = DateTime(2026, 10, 5);
+      final created = DateTime(2026, 10, 1);
+      final completions = [
+        DateTime(2026, 10, 3),
+        DateTime(2026, 10, 4),
+      ];
+      final stats = StreakCalculator.bounceBackStats(
+        completionDates: completions,
+        createdDay: created,
+        today: today,
+        isScheduled: (_) => true,
+      );
+      expect(stats.totalMisses, 2);
+      expect(stats.recoveredCount, 1);
+      expect(stats.rate, 50);
+    });
+  });
 }
