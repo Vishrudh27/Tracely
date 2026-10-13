@@ -121,4 +121,51 @@ final class StreakCalculator {
     if (totalDays == 0) return 0.0;
     return (completedDays / totalDays).clamp(0.0, 1.0);
   }
+
+  /// Calculates the bounce-back rate and recovery count.
+  ///
+  /// For every missed scheduled day between [createdDay] and yesterday, checks
+  /// if the user completed the habit on the very next scheduled day.
+  ///
+  /// Returns a record with:
+  /// - [rate]: Percentage (0–100)
+  /// - [recoveredCount]: Times recovered next day
+  /// - [totalMisses]: Total missed scheduled days
+  static ({int rate, int recoveredCount, int totalMisses}) bounceBackStats({
+    required List<DateTime> completionDates,
+    required DateTime createdDay,
+    required DateTime today,
+    required bool Function(DateTime day) isScheduled,
+  }) {
+    final completedSet = completionDates.map((d) => d.startOfDay).toSet();
+    final start = createdDay.startOfDay;
+    final end = today.startOfDay;
+
+    int totalMisses = 0;
+    int recoveredCount = 0;
+
+    var cursor = start;
+    while (cursor.isBefore(end)) {
+      if (isScheduled(cursor) && !completedSet.contains(cursor)) {
+        totalMisses++;
+        // Find next scheduled day
+        var nextScheduled = cursor.addDays(1);
+        while (!isScheduled(nextScheduled) &&
+            nextScheduled.isBefore(end.addDays(30))) {
+          nextScheduled = nextScheduled.addDays(1);
+        }
+        if (completedSet.contains(nextScheduled)) {
+          recoveredCount++;
+        }
+      }
+      cursor = cursor.addDays(1);
+    }
+
+    if (totalMisses == 0) {
+      return (rate: 100, recoveredCount: 0, totalMisses: 0);
+    }
+
+    final rate = ((recoveredCount / totalMisses) * 100).round().clamp(0, 100);
+    return (rate: rate, recoveredCount: recoveredCount, totalMisses: totalMisses);
+  }
 }

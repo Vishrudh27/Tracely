@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -927,4 +928,30 @@ final habitReasonsProvider =
   return ref
       .watch(reflectionDaoProvider)
       .watchMostCommonReasonsForHabit(habitId);
+});
+
+/// Watches reflections recorded for [habitId] over the last 90 days,
+/// mapped by normalized date (year, month, day).
+final habitReflectionsMapProvider =
+    StreamProvider.family<Map<DateTime, HabitReflection>, int>((ref, habitId) {
+  final db = ref.watch(appDatabaseProvider);
+  final start = DateTime.now().subtract(const Duration(days: 90));
+  final end = DateTime.now().add(const Duration(days: 1));
+  return db.reflectionDao.watchReflectionsInRange(start, end).map((reflections) {
+    final map = <DateTime, HabitReflection>{};
+    for (final r in reflections) {
+      try {
+        final list = (jsonDecode(r.missedHabitIds) as List).cast<int>();
+        if (list.contains(habitId)) {
+          final d = DateTime(
+            r.reflectionDate.year,
+            r.reflectionDate.month,
+            r.reflectionDate.day,
+          );
+          map[d] = r;
+        }
+      } catch (_) {}
+    }
+    return map;
+  });
 });
